@@ -1,53 +1,382 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cinzel:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --player-color: #00d4ff;
+    --board-size: min(480px, 90vw);
+  }
+
+  * {
+    @apply box-border;
+  }
+
   body {
-    @apply bg-dark text-gray-100 min-h-screen overflow-x-hidden font-sans;
+    @apply bg-slate-950 text-gray-100 min-h-screen overflow-x-hidden font-sans;
+    font-family: 'Inter', sans-serif;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 10% 20%, rgba(0, 80, 200, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 90% 80%, rgba(120, 0, 200, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(0, 180, 100, 0.03) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
   }
 }
 
-/* Background animation */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at 10% 20%, rgba(0, 80, 200, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 90% 80%, rgba(120, 0, 200, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(0, 180, 100, 0.03) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
+@layer components {
+  /* Glass Panel */
+  .glass-panel {
+    @apply bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md overflow-hidden;
+  }
+
+  .panel-header {
+    @apply px-4 py-3 border-b border-white/10 text-xs font-bold uppercase tracking-wider text-white/40 flex items-center gap-2;
+  }
+
+  /* Player Selector */
+  .player-selector-btn {
+    @apply flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 cursor-pointer transition-all backdrop-blur-sm hover:bg-white/10 hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/15;
+  }
+
+  .selector-avatar {
+    @apply w-9 h-9 rounded-full bg-gradient-to-br from-cyan-400 to-white/10 flex items-center justify-center font-bold text-sm;
+  }
+
+  /* Player Dropdown */
+  .player-dropdown {
+    @apply absolute top-full left-0 mt-2 w-72 bg-slate-900/95 border border-white/10 rounded-2xl backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden;
+    animation: dropdownIn 0.2s ease;
+  }
+
+  .dropdown-header {
+    @apply px-4 py-3 text-xs font-bold uppercase tracking-wider text-white/40 border-b border-white/5;
+  }
+
+  .player-card {
+    @apply flex items-center gap-3 px-4 py-3 cursor-pointer transition-all border-l-4 border-transparent hover:bg-white/5 hover:border-cyan-400;
+  }
+
+  .player-card.active {
+    @apply bg-white/10 border-cyan-400;
+  }
+
+  .player-card-avatar {
+    @apply w-10 h-10 rounded-full flex items-center justify-center font-bold text-base flex-shrink-0 bg-gradient-to-br from-cyan-400 to-white/10;
+  }
+
+  .player-card-name {
+    @apply text-sm font-semibold text-white/90;
+  }
+
+  .player-card-meta {
+    @apply text-xs text-white/40 mt-0.5;
+  }
+
+  .player-card-elo {
+    @apply text-xs font-bold font-mono text-white/50;
+  }
+
+  /* Chess Board */
+  .chess-board {
+    @apply w-[var(--board-size)] h-[var(--board-size)] rounded overflow-hidden flex-shrink-0;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.08), 0 20px 60px rgba(0,0,0,0.6), 0 0 80px rgba(0, 212, 255, 0.06);
+  }
+
+  .chess-cell {
+    @apply transition-colors hover:brightness-110;
+  }
+
+  .chess-piece {
+    @apply transition-transform cursor-pointer hover:scale-110;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  }
+
+  .player-accent-bar {
+    @apply h-1 bg-gradient-to-r from-cyan-400 to-transparent;
+  }
+
+  #active-avatar {
+    @apply w-14 h-14 rounded-full flex items-center justify-center font-bold text-2xl flex-shrink-0 bg-gradient-to-br from-cyan-400 to-white/10;
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.25);
+    transition: box-shadow 0.3s;
+  }
+
+  /* Move History */
+  .move-history {
+    @apply font-mono text-sm max-h-52 overflow-y-auto p-3;
+  }
+
+  .move-row {
+    @apply grid grid-cols-[28px_1fr_1fr] gap-1 px-1 py-0.5 rounded hover:bg-white/5 transition-colors;
+  }
+
+  .move-row.last-move {
+    @apply bg-white/5;
+  }
+
+  .move-number {
+    @apply text-xs text-white/30;
+  }
+
+  .move-san {
+    @apply text-white/85 px-1 py-0.5 rounded cursor-pointer transition-colors;
+  }
+
+  .move-san.current {
+    @apply bg-cyan-500/20 text-cyan-400;
+  }
+
+  /* AI Chat */
+  .ai-chat-messages {
+    @apply max-h-72 overflow-y-auto p-3 flex flex-col gap-2.5;
+  }
+
+  .ai-message {
+    @apply flex items-start gap-2;
+  }
+
+  .user-message {
+    @apply flex justify-end;
+  }
+
+  .ai-avatar {
+    @apply w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold bg-gradient-to-br from-cyan-400 to-white/10;
+  }
+
+  .ai-bubble {
+    @apply bg-white/5 border border-white/10 rounded-r-2xl rounded-bl-2xl px-3 py-2.5 text-sm text-white/90 max-w-xs;
+    line-height: 1.5;
+  }
+
+  .user-bubble {
+    @apply bg-gradient-to-br from-cyan-500/20 to-blue-500/15 border border-cyan-400/20 rounded-l-2xl rounded-br-2xl px-3 py-2.5 text-sm text-white/90 max-w-xs;
+    line-height: 1.5;
+  }
+
+  .ai-bubble.streaming {
+    @apply border-cyan-400;
+  }
+
+  .ai-bubble.streaming::after {
+    content: '▌';
+    animation: blink 1s step-end infinite;
+    color: #00d4ff;
+    margin-left: 4px;
+  }
+
+  /* Chat Input */
+  .chat-input-row {
+    @apply flex gap-2 p-3 border-t border-white/5;
+  }
+
+  #ai-chat-input {
+    @apply flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none transition-colors placeholder-white/25 hover:border-white/20 focus:border-cyan-400;
+    font-family: 'Inter', sans-serif;
+  }
+
+  #ai-chat-send {
+    @apply px-4 py-2 bg-gradient-to-r from-cyan-400 to-blue-500 border-0 rounded-lg text-white text-sm font-semibold cursor-pointer transition-all hover:opacity-90 hover:scale-105;
+  }
+
+  /* Game Buttons */
+  .game-btn {
+    @apply flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/10 bg-white/5 text-white/80 text-xs font-medium transition-all whitespace-nowrap hover:bg-white/10 hover:border-cyan-400 hover:text-white;
+  }
+
+  .game-btn.active {
+    @apply bg-cyan-500/15 border-cyan-400 text-cyan-300;
+  }
+
+  .game-btn.danger {
+    @apply border-red-500/30 hover:bg-red-500/10 hover:border-red-500/60 hover:text-red-400;
+  }
+
+  .game-btn.primary {
+    @apply bg-gradient-to-r from-cyan-400 to-blue-500 border-transparent text-white font-semibold hover:opacity-90;
+  }
+
+  /* Status Bar */
+  .game-status {
+    @apply font-semibold text-base text-cyan-400;
+  }
+
+  /* Game Over Overlay */
+  .game-over-overlay {
+    @apply absolute inset-0 bg-black/80 backdrop-blur rounded flex flex-col items-center justify-center gap-3 z-50;
+    animation: fadeIn 0.35s ease;
+  }
+
+  .game-over-title {
+    font-family: 'Cinzel', serif;
+    @apply text-4xl font-bold text-cyan-400;
+    text-shadow: 0 0 30px currentColor;
+  }
+
+  /* API Modal */
+  .api-modal {
+    @apply fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50;
+    animation: fadeIn 0.25s ease;
+  }
+
+  .modal-box {
+    @apply bg-slate-900/95 border border-white/10 rounded-2xl p-8 w-full max-w-sm shadow-2xl;
+  }
+
+  .modal-title {
+    font-family: 'Cinzel', serif;
+    @apply text-2xl font-bold mb-2 bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent;
+  }
+
+  .modal-desc {
+    @apply text-sm text-white/50 mb-5 leading-relaxed;
+  }
+
+  .modal-input {
+    @apply w-full px-3.5 py-3 bg-white/5 border border-white/10 rounded-lg text-white text-sm outline-none transition-colors mb-4 placeholder-white/25 hover:border-white/20 focus:border-cyan-400;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+
+  .modal-btn-row {
+    @apply flex gap-2.5;
+  }
+
+  .modal-btn-primary {
+    @apply flex-1 px-4 py-2.5 bg-gradient-to-r from-cyan-400 to-blue-500 border-0 rounded-lg text-white font-bold text-base cursor-pointer transition-opacity hover:opacity-90;
+  }
+
+  .modal-btn-secondary {
+    @apply px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white/60 text-base cursor-pointer transition-all hover:bg-white/10 hover:text-white;
+  }
+
+  /* API Status */
+  #api-status {
+    @apply w-2.5 h-2.5 rounded-full cursor-pointer transition-all;
+  }
+
+  .api-connected {
+    @apply bg-green-500;
+    box-shadow: 0 0 8px #22c55e;
+    animation: pulse-green 2s infinite;
+  }
+
+  .api-disconnected {
+    @apply bg-amber-500;
+    box-shadow: 0 0 8px #f59e0b;
+  }
+
+  /* Logo */
+  .app-logo {
+    font-family: 'Cinzel', serif;
+    @apply font-bold text-lg bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent;
+    letter-spacing: 0.5px;
+  }
+
+  /* ELO Badge */
+  .elo-badge {
+    font-family: 'JetBrains Mono', monospace;
+    @apply text-xs px-2 py-0.5 bg-white/5 border border-white/10 rounded-full text-cyan-400;
+  }
+
+  /* Color Buttons */
+  .color-btn-white {
+    @apply bg-white/90 text-slate-900 border-0 font-bold hover:opacity-90;
+  }
+
+  .color-btn-black {
+    @apply bg-slate-800/90 text-white border border-white/20 font-bold hover:opacity-90;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-1 h-1;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full hover:bg-white/20;
+  }
 }
 
-/* Glass panel */
-.glass-panel {
-  @apply bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md overflow-hidden;
+/* Animations */
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-.panel-header {
-  @apply px-4 py-3 border-b border-white/10 text-[11px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-2;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-/* Buttons */
-.game-btn {
-  @apply flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/10 bg-white/5 text-white/80 text-[12.5px] font-medium transition-all hover:bg-white/10 hover:border-accent hover:text-white whitespace-nowrap;
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
-.btn-active {
-  @apply bg-accent/10 border-accent text-accent;
-}
-.btn-primary {
-  background: linear-gradient(135deg, var(--player-color, #00d4ff), rgba(0, 100, 200, 0.7)) !important;
-  @apply border-transparent text-white font-semibold hover:opacity-90;
-}
-.btn-danger { @apply border-red-500/30 hover:bg-red-500/10 hover:border-red-500/60 hover:text-red-400; }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.12);
-  border-radius: 10px;
+@keyframes pulse-green {
+  0%, 100% {
+    box-shadow: 0 0 6px #22c55e;
+  }
+  50% {
+    box-shadow: 0 0 14px #22c55e;
+  }
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+@keyframes pieceDrop {
+  from {
+    transform: scale(1.3) translateY(-8px);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.piece-move {
+  animation: pieceDrop 0.2s ease;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  :root {
+    --board-size: min(420px, 95vw);
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --board-size: min(360px, 95vw);
+  }
+
+  .right-col {
+    @apply hidden;
+  }
+}

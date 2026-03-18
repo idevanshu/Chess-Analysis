@@ -12,7 +12,7 @@ const createChessInstance = () => {
     }
 }
 
-export function useChessLogic(currentPlayer, hintsEnabled) {
+export function useChessLogic(currentPlayer, hintsEnabled, isMultiplayer = false) {
   const [game, setGame] = useState(() => {
     try { return new Chess(); } 
     catch(e) { 
@@ -133,7 +133,8 @@ export function useChessLogic(currentPlayer, hintsEnabled) {
 
     const isOver = checkGameOver();
 
-    if (!isOver && game.turn() !== playerColor) {
+    // In multiplayer mode, don't trigger AI move
+    if (!isMultiplayer && !isOver && game.turn() !== playerColor) {
       getAIMove();
     }
   };
@@ -162,7 +163,8 @@ export function useChessLogic(currentPlayer, hintsEnabled) {
     setCaptured({ w: [], b: [] });
     setHintArrow(null);
     
-    if (playerColor === 'b') {
+    // In multiplayer mode don't start with AI thinking
+    if (!isMultiplayer && playerColor === 'b') {
       setIsAiThinking(true);
       setTimeout(getAIMove, 500);
     }

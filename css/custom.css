@@ -1,35 +1,4 @@
-/* Chess Platform - Custom CSS */
-/* Animations & elements that extend TailwindCSS */
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cinzel:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
-:root {
-  --player-color: #00d4ff;
-  --board-size: min(480px, 90vw);
-}
-
-* { box-sizing: border-box; }
-
-body {
-  font-family: 'Inter', sans-serif;
-  background: #0a0a12;
-  color: #e8e8f0;
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
-/* Animated background */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at 10% 20%, rgba(0, 80, 200, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 90% 80%, rgba(120, 0, 200, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(0, 180, 100, 0.03) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-}
+/* This file is deprecated. All styles have been migrated to src/index.css using Tailwind CSS */
 
 /* ===== PLAYER SELECTOR ===== */
 #player-selector-area {
