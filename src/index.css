@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-dark text-gray-100 min-h-screen overflow-x-hidden font-sans;
+  }
+}
+
+/* Background animation */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 10% 20%, rgba(0, 80, 200, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 80%, rgba(120, 0, 200, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(0, 180, 100, 0.03) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Glass panel */
+.glass-panel {
+  @apply bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md overflow-hidden;
+}
+
+.panel-header {
+  @apply px-4 py-3 border-b border-white/10 text-[11px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-2;
+}
+
+/* Buttons */
+.game-btn {
+  @apply flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/10 bg-white/5 text-white/80 text-[12.5px] font-medium transition-all hover:bg-white/10 hover:border-accent hover:text-white whitespace-nowrap;
+}
+.btn-active {
+  @apply bg-accent/10 border-accent text-accent;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--player-color, #00d4ff), rgba(0, 100, 200, 0.7)) !important;
+  @apply border-transparent text-white font-semibold hover:opacity-90;
+}
+.btn-danger { @apply border-red-500/30 hover:bg-red-500/10 hover:border-red-500/60 hover:text-red-400; }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
