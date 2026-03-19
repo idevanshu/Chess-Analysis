@@ -50,7 +50,6 @@ function GameView() {
 
   // Setup multiplayer socket connection
   const handleOpponentMove = useCallback((data) => {
-    // Handle opponent move
     console.log('Opponent move:', data);
     if (data.san) {
       makeExternalMove(data.san);
@@ -58,18 +57,29 @@ function GameView() {
   }, [makeExternalMove]);
 
   const handleGameEnded = useCallback((data) => {
-    // Handle game end
     console.log('Game ended:', data);
     if (data.result === 'opponent_resigned') {
       forceGameOver('Opponent Resigned. You Win!');
+    } else if (data.reason === 'checkmate') {
+      // Server detected checkmate — chess.js locally will also catch it
+    } else if (data.reason === 'draw') {
+      forceGameOver('Draw!');
     }
   }, [forceGameOver]);
 
-  const { sendMove, resign: multiplayerResign } = useMultiplayer(
+  // Sync handler for late joins / reconnects
+  const handleGameSync = useCallback((data) => {
+    console.log('Game sync received:', data);
+    // Board sync is handled by chess.js replaying moves — for now just log
+  }, []);
+
+  const { sendMove, resign: multiplayerResign, connected: mpConnected, opponentOnline } = useMultiplayer(
     multiplayerRoomCode,
     user?.id,
+    token,
     handleOpponentMove,
-    handleGameEnded
+    handleGameEnded,
+    handleGameSync
   );
 
   // Send move in multiplayer if we just played
@@ -662,13 +672,24 @@ function GameView() {
             <div className="glass-panel flex-1 flex flex-col min-h-[100px] justify-center">
               <div className="p-4 text-center">
                 <div className="text-sm font-semibold text-white/90 mb-2">
-                  {gameMode === 'multiplayer_host' ? 'Waiting for opponent...' : 'Connected to game'}
+                  {opponentOnline ? 'Opponent Connected' : gameMode === 'multiplayer_host' ? 'Waiting for opponent...' : 'Connecting...'}
                 </div>
                 <div className="text-xs text-white/50 mb-3">
-                  {gameMode === 'multiplayer_host'
+                  {gameMode === 'multiplayer_host' && !opponentOnline
                     ? 'Share the room code to invite your friend'
-                    : multiplayerOpponent?.name || 'opponent'
+                    : multiplayerOpponent?.name || 'Online Game'
                   }
+                </div>
+                {/* Connection indicators */}
+                <div className="flex items-center justify-center gap-4 mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <div className={`w-2 h-2 rounded-full ${mpConnected ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-red-500'}`} />
+                    <span className="text-[10px] text-white/40">You</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`w-2 h-2 rounded-full ${opponentOnline ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-amber-500 animate-pulse'}`} />
+                    <span className="text-[10px] text-white/40">Opponent</span>
+                  </div>
                 </div>
                 <div className="flex items-center justify-center gap-2 p-2 bg-white/5 rounded border border-white/10">
                   <span className="text-xs text-white/60">Playing as:</span>

@@ -6,6 +6,8 @@ import jwt from 'jsonwebtoken';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { Chess } from 'chess.js';
+import promClient from 'prom-client';
 import User from './models/User.js';
 import Game from './models/Game.js';
 import Performance from './models/Performance.js';
@@ -17,7 +19,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: 'http://localhost:5173',
+    origin: '*',
     methods: ['GET', 'POST']
   }
 });
@@ -36,6 +38,153 @@ const apiKey = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
+// ===== OPENMETRICS / PROMETHEUS SETUP =====
+const metricsRegister = new promClient.Registry();
+metricsRegister.setDefaultLabels({ app: 'chess-legends' });
+promClient.collectDefaultMetrics({ register: metricsRegister });
+
+// ── Custom metrics ──
+
+const httpRequestDuration = new promClient.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.01, 0.05, 0.1, 0.3, 0.5, 1, 2, 5],
+  registers: [metricsRegister],
+});
+
+const httpRequestsTotal = new promClient.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code'],
+  registers: [metricsRegister],
+});
+
+const wsConnectionsActive = new promClient.Gauge({
+  name: 'ws_connections_active',
+  help: 'Number of active WebSocket connections',
+  registers: [metricsRegister],
+});
+
+const wsEventsTotal = new promClient.Counter({
+  name: 'ws_events_total',
+  help: 'Total WebSocket events processed',
+  labelNames: ['event'],
+  registers: [metricsRegister],
+});
+
+const gamesPlayedTotal = new promClient.Counter({
+  name: 'games_played_total',
+  help: 'Total games completed',
+  labelNames: ['mode', 'result'],
+  registers: [metricsRegister],
+});
+
+const activeRoomsGauge = new promClient.Gauge({
+  name: 'multiplayer_rooms_active',
+  help: 'Number of active multiplayer rooms',
+  registers: [metricsRegister],
+});
+
+const movesProcessedTotal = new promClient.Counter({
+  name: 'moves_processed_total',
+  help: 'Total chess moves processed (validated)',
+  labelNames: ['source'],
+  registers: [metricsRegister],
+});
+
+const authAttemptsTotal = new promClient.Counter({
+  name: 'auth_attempts_total',
+  help: 'Authentication attempts',
+  labelNames: ['type', 'result'],
+  registers: [metricsRegister],
+});
+
+const geminiRequestDuration = new promClient.Histogram({
+  name: 'gemini_request_duration_seconds',
+  help: 'Duration of Gemini API calls',
+  buckets: [0.5, 1, 2, 5, 10, 20],
+  registers: [metricsRegister],
+});
+
+const mongoConnectionState = new promClient.Gauge({
+  name: 'mongodb_connection_state',
+  help: 'MongoDB connection state (0=disconnected, 1=connected, 2=connecting, 3=disconnecting)',
+  registers: [metricsRegister],
+});
+
+// ── HTTP metrics middleware (skip /metrics and /health) ──
+app.use((req, res, next) => {
+  if (req.path === '/metrics' || req.path === '/health' || req.path === '/ready') {
+    return next();
+  }
+  const end = httpRequestDuration.startTimer();
+  res.on('finish', () => {
+    const route = req.route?.path || req.path;
+    const labels = { method: req.method, route, status_code: res.statusCode };
+    end(labels);
+    httpRequestsTotal.inc(labels);
+  });
+  next();
+});
+
+// ── Health check endpoint ──
+app.get('/health', async (req, res) => {
+  const mongoState = mongoose.connection.readyState;
+  const mongoOk = mongoState === 1;
+
+  const checks = {
+    status: mongoOk ? 'healthy' : 'degraded',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    checks: {
+      mongodb: {
+        status: mongoOk ? 'up' : 'down',
+        state: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoState] || 'unknown',
+      },
+      socketio: {
+        status: 'up',
+        connections: io.engine?.clientsCount || 0,
+      },
+      gemini: {
+        status: apiKey ? 'configured' : 'missing',
+      },
+    },
+    memory: {
+      rss: Math.round(process.memoryUsage().rss / 1024 / 1024) + ' MB',
+      heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
+      heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + ' MB',
+    },
+  };
+
+  res.status(mongoOk ? 200 : 503).json(checks);
+});
+
+// ── Readiness probe (for k8s / load balancers) ──
+app.get('/ready', async (req, res) => {
+  const mongoOk = mongoose.connection.readyState === 1;
+  if (mongoOk) {
+    res.status(200).json({ status: 'ready' });
+  } else {
+    res.status(503).json({ status: 'not ready', reason: 'MongoDB not connected' });
+  }
+});
+
+// ── OpenMetrics / Prometheus scrape endpoint ──
+app.get('/metrics', async (req, res) => {
+  // Update point-in-time gauges before scrape
+  mongoConnectionState.set(mongoose.connection.readyState);
+  wsConnectionsActive.set(io.engine?.clientsCount || 0);
+
+  try {
+    const activeRooms = await GameRoom.countDocuments({ status: 'active' }).catch(() => 0);
+    activeRoomsGauge.set(activeRooms);
+  } catch (e) { /* ignore */ }
+
+  res.set('Content-Type', metricsRegister.contentType);
+  res.end(await metricsRegister.metrics());
+});
+
 // Middleware to verify JWT token
 const verifyToken = (req, res, next) => {
   try {
@@ -43,7 +192,7 @@ const verifyToken = (req, res, next) => {
     if (!token) {
       return res.status(401).json({ error: 'No token provided' });
     }
-    
+
     const decoded = jwt.verify(token, jwtSecret);
     req.userId = decoded.id;
     return next();
@@ -72,16 +221,18 @@ app.post('/api/auth/signup', async (req, res) => {
     await user.save();
 
     const token = jwt.sign({ id: user._id }, jwtSecret, { expiresIn: '7d' });
-    res.status(201).json({ 
-      token, 
-      user: { 
-        id: user._id, 
-        email: user.email, 
+    authAttemptsTotal.inc({ type: 'signup', result: 'success' });
+    res.status(201).json({
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
         name: user.name,
-        stats: user.stats 
-      } 
+        stats: user.stats
+      }
     });
   } catch (error) {
+    authAttemptsTotal.inc({ type: 'signup', result: 'error' });
     console.error('Signup error:', error);
     res.status(500).json({ error: error.message });
   }
@@ -99,20 +250,23 @@ app.post('/api/auth/login', async (req, res) => {
 
     const isValidPassword = await user.comparePassword(password);
     if (!isValidPassword) {
+      authAttemptsTotal.inc({ type: 'login', result: 'invalid' });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const token = jwt.sign({ id: user._id }, jwtSecret, { expiresIn: '7d' });
-    res.json({ 
-      token, 
-      user: { 
-        id: user._id, 
-        email: user.email, 
+    authAttemptsTotal.inc({ type: 'login', result: 'success' });
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
         name: user.name,
-        stats: user.stats 
-      } 
+        stats: user.stats
+      }
     });
   } catch (error) {
+    authAttemptsTotal.inc({ type: 'login', result: 'error' });
     console.error('Login error:', error);
     res.status(500).json({ error: error.message });
   }
@@ -235,6 +389,7 @@ app.post('/api/games/save', verifyToken, async (req, res) => {
     });
 
     await game.save();
+    gamesPlayedTotal.inc({ mode: gameMode, result: result || 'unknown' });
     console.log('Game saved to database');
 
     // Get fresh user data
@@ -750,7 +905,9 @@ function calculateAccuracy(moves) {
 
 // Chat stream endpoint
 app.post('/api/chat', async (req, res) => {
+  const geminiTimer = geminiRequestDuration.startTimer();
   if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+    geminiTimer();
     return res.status(500).json({ error: 'GEMINI_API_KEY is not configured in .env' });
   }
 
@@ -804,8 +961,10 @@ app.post('/api/chat', async (req, res) => {
     
     res.write('data: [DONE]\n\n');
     res.end();
+    geminiTimer();
 
   } catch (error) {
+    geminiTimer();
     console.error('Gemini API Error:', error);
     res.status(500).json({ error: error.message });
   }
@@ -905,42 +1064,44 @@ app.get('/api/rooms/:roomCode', verifyToken, async (req, res) => {
   }
 });
 
-// Make a move in a room
+// Make a move in a room (REST fallback — moves primarily go through Socket.IO now)
 app.post('/api/rooms/:roomCode/move', verifyToken, async (req, res) => {
   try {
     const { roomCode } = req.params;
-    const { move, fen, san } = req.body;
-    
+    const { san } = req.body;
+
     const gameRoom = await GameRoom.findOne({ roomCode });
     if (!gameRoom) {
       return res.status(404).json({ error: 'Room not found' });
     }
-    
+
     if (gameRoom.status !== 'active') {
       return res.status(400).json({ error: 'Game is not active' });
     }
-    
+
+    // Server-side validation with chess.js
+    const chess = new Chess(gameRoom.currentFen);
+    let moveObj;
+    try {
+      moveObj = chess.move(san);
+    } catch (e) {
+      return res.status(400).json({ error: 'Illegal move' });
+    }
+    if (!moveObj) {
+      return res.status(400).json({ error: 'Illegal move' });
+    }
+
     gameRoom.moves.push({
       moveNumber: gameRoom.moves.length + 1,
-      san: san,
-      fen: fen,
+      san: moveObj.san,
+      fen: chess.fen(),
       madeBy: req.userId,
       timestamp: new Date()
     });
-    
-    gameRoom.currentFen = fen;
-    
+    gameRoom.currentFen = chess.fen();
     await gameRoom.save();
-    
-    // Emit move to opponent via Socket.io
-    io.to(roomCode).emit('opponentMove', {
-      move,
-      fen,
-      san,
-      madeBy: req.userId
-    });
-    
-    res.json({ success: true });
+
+    res.json({ success: true, fen: chess.fen() });
   } catch (error) {
     console.error('Make move error:', error);
     res.status(500).json({ error: error.message });
@@ -969,35 +1130,195 @@ app.get('/api/rooms/list/active', verifyToken, async (req, res) => {
 
 // ===== SOCKET.IO EVENT HANDLERS =====
 
+// Track socket -> { userId, roomCode } mappings for disconnect handling
+const socketUserMap = new Map();
+
+// Authenticate socket connections via JWT
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) {
+    // Allow unauthenticated connections but mark them
+    socket.userId = null;
+    return next();
+  }
+  try {
+    const decoded = jwt.verify(token, jwtSecret);
+    socket.userId = decoded.id;
+    next();
+  } catch (err) {
+    socket.userId = null;
+    next();
+  }
+});
+
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('User connected:', socket.id, 'userId:', socket.userId);
+  wsConnectionsActive.inc();
+  wsEventsTotal.inc({ event: 'connection' });
 
-  // Join a room
-  socket.on('joinRoom', (roomCode) => {
+  // ── Join a room ──
+  socket.on('joinRoom', async (roomCode) => {
+    if (!roomCode) return;
     socket.join(roomCode);
-    console.log(`Socket ${socket.id} joined room ${roomCode}`);
-    io.to(roomCode).emit('userJoined', { message: 'Opponent has joined' });
-  });
 
-  // Make move
-  socket.on('makeMove', (data) => {
-    const { roomCode, move, fen, san } = data;
-    socket.to(roomCode).emit('opponentMove', {
-      move,
-      fen,
-      san,
-      timestamp: new Date()
+    // Track this socket's room for disconnect handling
+    socketUserMap.set(socket.id, { userId: socket.userId, roomCode });
+
+    console.log(`Socket ${socket.id} (user ${socket.userId}) joined room ${roomCode}`);
+
+    // Send current board state to the joiner (handles late joins / reconnects)
+    try {
+      const room = await GameRoom.findOne({ roomCode });
+      if (room) {
+        socket.emit('gameSync', {
+          fen: room.currentFen,
+          moves: room.moves.map(m => m.san),
+          status: room.status,
+          hostColor: room.hostColor,
+          guestColor: room.guestColor,
+        });
+      }
+    } catch (e) {
+      console.error('gameSync error:', e);
+    }
+
+    // Notify the room that someone joined
+    socket.to(roomCode).emit('userJoined', {
+      message: 'Opponent has joined',
+      userId: socket.userId
     });
   });
 
-  // Resign
-  socket.on('resign', (roomCode) => {
-    io.to(roomCode).emit('gameEnded', { result: 'opponent_resigned' });
+  // ── Make a move (server-validated) ──
+  socket.on('makeMove', async (data) => {
+    const { roomCode, san } = data;
+    if (!roomCode || !san) return;
+
+    try {
+      const room = await GameRoom.findOne({ roomCode });
+      if (!room || room.status !== 'active') {
+        socket.emit('moveError', { error: 'Game is not active' });
+        return;
+      }
+
+      // Determine whose turn it is from the FEN
+      const chess = new Chess(room.currentFen);
+      const turnColor = chess.turn(); // 'w' or 'b'
+
+      // Check if the socket user is the correct player for this turn
+      const isHost = socket.userId && room.host.toString() === socket.userId;
+      const isGuest = socket.userId && room.guest && room.guest.toString() === socket.userId;
+
+      if (!isHost && !isGuest) {
+        socket.emit('moveError', { error: 'You are not a player in this game' });
+        return;
+      }
+
+      const playerColor = isHost ? room.hostColor : room.guestColor;
+      if (playerColor !== turnColor) {
+        socket.emit('moveError', { error: 'Not your turn' });
+        return;
+      }
+
+      // Validate the move with chess.js
+      let moveObj;
+      try {
+        moveObj = chess.move(san);
+      } catch (e) {
+        socket.emit('moveError', { error: 'Illegal move' });
+        return;
+      }
+
+      if (!moveObj) {
+        socket.emit('moveError', { error: 'Illegal move' });
+        return;
+      }
+
+      const newFen = chess.fen();
+
+      // Save to DB
+      room.moves.push({
+        moveNumber: room.moves.length + 1,
+        san: moveObj.san,
+        fen: newFen,
+        madeBy: socket.userId,
+        timestamp: new Date()
+      });
+      room.currentFen = newFen;
+
+      // Check for game over
+      if (chess.isCheckmate()) {
+        room.status = 'completed';
+        room.result = playerColor === room.hostColor ? 'hostWin' : 'guestWin';
+        room.endTime = new Date();
+      } else if (chess.isDraw()) {
+        room.status = 'completed';
+        room.result = 'draw';
+        room.endTime = new Date();
+      }
+
+      await room.save();
+
+      // Broadcast the validated move to the opponent
+      movesProcessedTotal.inc({ source: 'socket' });
+      wsEventsTotal.inc({ event: 'makeMove' });
+      socket.to(roomCode).emit('opponentMove', {
+        san: moveObj.san,
+        fen: newFen,
+        timestamp: new Date()
+      });
+
+      // Confirm move to the sender
+      socket.emit('moveConfirmed', { san: moveObj.san, fen: newFen });
+
+      // If game ended, notify both players
+      if (room.status === 'completed') {
+        io.to(roomCode).emit('gameEnded', {
+          result: room.result,
+          reason: chess.isCheckmate() ? 'checkmate' : 'draw'
+        });
+      }
+    } catch (e) {
+      console.error('makeMove error:', e);
+      socket.emit('moveError', { error: 'Server error' });
+    }
   });
 
-  // Disconnect
+  // ── Resign ──
+  socket.on('resign', async (roomCode) => {
+    if (!roomCode) return;
+
+    try {
+      const room = await GameRoom.findOne({ roomCode });
+      if (room && room.status === 'active') {
+        const isHost = socket.userId && room.host.toString() === socket.userId;
+        room.status = 'completed';
+        room.result = isHost ? 'guestWin' : 'hostWin';
+        room.endTime = new Date();
+        await room.save();
+      }
+    } catch (e) {
+      console.error('resign DB error:', e);
+    }
+
+    socket.to(roomCode).emit('gameEnded', { result: 'opponent_resigned' });
+  });
+
+  // ── Disconnect ──
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
+    wsConnectionsActive.dec();
+    wsEventsTotal.inc({ event: 'disconnect' });
+
+    const info = socketUserMap.get(socket.id);
+    if (info?.roomCode) {
+      // Notify the room that the opponent disconnected
+      socket.to(info.roomCode).emit('opponentDisconnected', {
+        userId: info.userId,
+        message: 'Opponent disconnected'
+      });
+    }
+    socketUserMap.delete(socket.id);
   });
 });
 

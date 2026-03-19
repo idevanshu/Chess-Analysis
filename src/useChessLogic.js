@@ -34,14 +34,19 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
       return;
     }
 
-    const depth = currentPlayer?.depth || 15;
-    const skillLevel = currentPlayer?.skillLevel ?? 10;
     const currentFen = game.fen();
 
+    // Engine config from player's world ranking
+    const engineConfig = {
+      elo: currentPlayer?.engineElo || currentPlayer?.elo || 2000,
+      depth: currentPlayer?.engineDepth || 18,
+      moveTimeMs: currentPlayer?.engineMoveTime || 2000,
+    };
+
     try {
-      // Use Stockfish engine for the AI move
+      // Use Stockfish engine for the AI move with ELO-based strength
       const bestUci = stockfishReady
-        ? await getBestMove(currentFen, depth, skillLevel)
+        ? await getBestMove(currentFen, engineConfig)
         : null;
 
       let moveObj = null;
@@ -82,7 +87,7 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     if (gameOver || game.turn() !== playerColor) return;
 
     if (stockfishReady) {
-      const bestUci = await getBestMove(game.fen(), 12, 20);
+      const bestUci = await getBestMove(game.fen(), { elo: 2800, depth: 16, moveTimeMs: 1500 });
       if (bestUci) {
         const from = bestUci.slice(0, 2);
         const to = bestUci.slice(2, 4);
