@@ -785,8 +785,8 @@ app.post('/api/chat', async (req, res) => {
     const chat = model.startChat({
       history: formattedHistory,
       generationConfig: {
-        temperature: 0.85,
-        maxOutputTokens: 256,
+        temperature: 1.0,
+        maxOutputTokens: 512,
       }
     });
 

@@ -1,23 +1,37 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+const COMMENTATOR_SYSTEM_PROMPT = `You are "Gary the Grand Commentator" — the world's most entertaining, over-the-top chess commentator. Think of a mix between a WWE announcer, a stand-up comedian, and a chess grandmaster who's had way too much coffee.
+
+Your style:
+- You narrate the chess match like it's the most dramatic sporting event in human history
+- You give pieces personalities ("That bishop has been LURKING on that diagonal like a creepy neighbor peeking through the blinds!")
+- You use hilarious metaphors, pop culture references, and absurd analogies
+- You hype up even the most boring moves ("A PAWN PUSH! Ladies and gentlemen, the audacity! The raw, unbridled COURAGE!")
+- You roast bad moves mercilessly but lovingly ("Oh no... oh NO... that's like bringing a spoon to a sword fight")
+- You create fake dramatic tension ("The tension in this position is thicker than my aunt's lasagna")
+- You occasionally break the fourth wall or address the audience directly
+- You give nicknames to pieces and pawns involved in key action
+- When someone blunders, you react like a sports commentator witnessing a spectacular fail
+- When a brilliant move is played, you lose your mind with excitement
+- You reference famous chess games, memes, and pop culture but in ridiculous ways
+- Keep it family-friendly but absolutely hilarious
+
+Rules:
+- Keep responses to 2-4 sentences MAX. Punchy and quotable.
+- NEVER use emojis. Text only, like a real broadcast.
+- NEVER explain chess rules or give coaching advice. You are a COMMENTATOR, not a teacher.
+- React to what just happened. Don't analyze future possibilities.
+- Vary your energy — sometimes deadpan, sometimes absolutely unhinged.
+- Reference the specific pieces and squares involved when possible.`;
 
 export function useGemini(currentPlayer) {
   const [messages, setMessages] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  
-  // Hardcoded check: If it's saved in local storage, use that.
-  // The server.js automatically uses process.env.GEMINI_API_KEY
-  // We just need to assume it's connected if we are relying on the .env file.
-  const checkIsConnected = () => {
-    return true; // Hardcoded to always be connected since backend has env
-  };
-
   const [isConnected, setIsConnected] = useState(true);
+  const streamingRef = useRef(false);
 
   useEffect(() => {
     setMessages([]);
-    if (currentPlayer && isConnected) {
-      addMessage(`I am ${currentPlayer.name}. ${currentPlayer.catchphrase} Ready to play? Make your first move!`, false);
-    }
   }, [currentPlayer, isConnected]);
 
   const addMessage = (text, isUser = false) => {
@@ -31,13 +45,14 @@ export function useGemini(currentPlayer) {
 
   const sendMessageStream = async (text, fenContext = null, triggerBySystem = false) => {
     if (!isConnected) return;
-    if (isStreaming) return;
+    if (streamingRef.current) return;
 
     if (!triggerBySystem) {
       addMessage(text, true);
     }
 
     setIsStreaming(true);
+    streamingRef.current = true;
 
     let contextMsg = text;
     if (fenContext) {
@@ -52,7 +67,7 @@ export function useGemini(currentPlayer) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: payloadMessages,
-          systemInstruction: currentPlayer?.systemPrompt || 'You are a helpful chess coach.',
+          systemInstruction: COMMENTATOR_SYSTEM_PROMPT,
         }),
       });
 
@@ -62,8 +77,7 @@ export function useGemini(currentPlayer) {
       const decoder = new TextDecoder();
       let fullText = '';
       let buffer = '';
-      
-      // Add empty stream message
+
       setMessages((prev) => [...prev, { role: 'model', parts: [{ text: '' }], isStreaming: true }]);
 
       while (true) {
@@ -72,8 +86,8 @@ export function useGemini(currentPlayer) {
 
         buffer += decoder.decode(value, { stream: true });
         const blocks = buffer.split('\n\n');
-        buffer = blocks.pop(); // keep incomplete block
-        
+        buffer = blocks.pop();
+
         for (const block of blocks) {
           const lines = block.split('\n');
           for (const line of lines) {
@@ -84,7 +98,6 @@ export function useGemini(currentPlayer) {
                 const parsed = JSON.parse(data);
                 if (parsed.text) {
                   fullText += parsed.text;
-                  // Update last message immutably
                   setMessages((prev) => {
                     const newMsgs = [...prev];
                     const lastMsg = newMsgs[newMsgs.length - 1];
@@ -103,7 +116,6 @@ export function useGemini(currentPlayer) {
         }
       }
 
-      // Finalize stream message
       setMessages((prev) => {
         const newMsgs = [...prev];
         newMsgs[newMsgs.length - 1].isStreaming = false;
@@ -111,22 +123,34 @@ export function useGemini(currentPlayer) {
       });
 
     } catch (err) {
-      addMessage(`⚠️ Error: ${err.message}`, false);
+      addMessage(`Connection hiccup: ${err.message}`, false);
     } finally {
       setIsStreaming(false);
+      streamingRef.current = false;
     }
   };
 
-  const getAutoCommentary = async (fen, moveNumber, lastMove) => {
-    if (!isConnected || !currentPlayer) return;
-    
-    // Send background prompt for commentary
-    const prompt = `After ${lastMove} (move ${moveNumber}), react briefly as ${currentPlayer.name}.`;
+  const announceMatch = useCallback(async (playerName, playerElo, playerColorLabel, fen) => {
+    if (!isConnected) return;
+    const prompt = `The match is about to begin! The player is playing as ${playerColorLabel} against ${playerName} (ELO ${playerElo}). Give an absolutely electric, over-the-top match introduction like a boxing ring announcer crossed with a chess commentator. Hype up the opponent's reputation. This is the opening of the broadcast.`;
     await sendMessageStream(prompt, fen, true);
-  };
+  }, [isConnected]);
+
+  const getAutoCommentary = useCallback(async (fen, moveNumber, lastMove, extraContext = '') => {
+    if (!isConnected) return;
+
+    const prompt = `Move ${moveNumber}: ${lastMove} was just played. ${extraContext} Give your live commentary reaction. Remember — punchy, hilarious, and dramatic.`;
+    await sendMessageStream(prompt, fen, true);
+  }, [isConnected]);
+
+  const commentOnGameOver = useCallback(async (result, fen, totalMoves) => {
+    if (!isConnected) return;
+    const prompt = `THE GAME IS OVER after ${totalMoves} moves! Result: ${result}. Give your dramatic sign-off commentary for this match. Make it memorable — this is your closing broadcast moment.`;
+    await sendMessageStream(prompt, fen, true);
+  }, [isConnected]);
 
   return {
     messages, isStreaming, isConnected, saveApiKey,
-    sendMessageStream, getAutoCommentary
+    sendMessageStream, getAutoCommentary, announceMatch, commentOnGameOver
   };
 }

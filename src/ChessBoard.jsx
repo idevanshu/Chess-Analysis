@@ -13,13 +13,6 @@ export default React.memo(function ChessBoard({ game, flipped, selectedSquare, h
     }
   }, [selectedSquare, game.fen()]);
 
-  const selectSquare = (sq) => {
-    const newSelected = handleSquareClick(sq, selectedSquare);
-    if (newSelected !== undefined) {
-      // Parent component updates selectedSquare state which passes down
-    }
-  };
-
   const renderCells = () => {
     const cells = [];
     for (let row = 0; row < 8; row++) {
@@ -27,48 +20,56 @@ export default React.memo(function ChessBoard({ game, flipped, selectedSquare, h
         const sq = getSquareName(col, row, flipped);
         const isLight = (row + col) % 2 === 0;
         const piece = game.get(sq);
-        
-        // Colors - sleek premium slate/blue theme
-        let bgClass = isLight ? 'bg-slate-300' : 'bg-slate-600';
-        
-        // highlight last move (soft yellow/green overlay)
-        if (lastMove && (sq === lastMove.from || sq === lastMove.to)) {
-          bgClass = isLight ? 'bg-yellow-200/90' : 'bg-yellow-400/90';
+
+        const isLastMove = lastMove && (sq === lastMove.from || sq === lastMove.to);
+        const isSelected = sq === selectedSquare;
+        const isLegal = legalMoves.includes(sq);
+
+        // Premium board colors — warm wood tones
+        let bg;
+        if (isSelected) {
+          bg = 'bg-[#D4A746]'; // selected: warm gold
+        } else if (isLastMove) {
+          bg = isLight ? 'bg-[#DBC47A]' : 'bg-[#B89A4A]'; // last move: muted amber
+        } else {
+          bg = isLight ? 'bg-[#F0D9B5]' : 'bg-[#B58863]'; // classic brown/wood theme
         }
-        if (sq === selectedSquare) bgClass = 'bg-emerald-400/90 shadow-[inset_0_0_15px_rgba(0,0,0,0.2)]';
 
         cells.push(
           <div
             key={sq}
             onClick={() => handleSquareClick(sq, selectedSquare)}
-            className={`relative flex items-center justify-center cursor-pointer transition-colors duration-200 w-full h-full ${bgClass}`}
+            className={`relative flex items-center justify-center cursor-pointer w-full h-full ${bg} transition-colors duration-150`}
           >
             {/* Legal move indicators */}
-            {legalMoves.includes(sq) && (
+            {isLegal && (
               piece ? (
-                <div className="absolute inset-0 border-[5px] border-emerald-500/60 rounded-sm pointer-events-none z-10 box-border" />
+                // Capture ring
+                <div className="absolute inset-[3px] rounded-full border-[3px] border-black/20 pointer-events-none z-10" />
               ) : (
-                <div className="absolute w-[28%] h-[28%] top-[36%] left-[36%] rounded-full bg-emerald-500/50 pointer-events-none z-10 shadow-inner" />
+                // Move dot
+                <div className="absolute w-[30%] h-[30%] rounded-full bg-black/15 pointer-events-none z-10" />
               )
             )}
 
-            {/* Piece SVG */}
+            {/* Piece */}
             {piece && (
-              <div 
-                className="w-[85%] h-[85%] transition-transform hover:scale-[1.15] z-[2] drop-shadow-[0_6px_8px_rgba(0,0,0,0.7)] flex items-center justify-center cursor-grab active:cursor-grabbing piece-container"
+              <div
+                className="w-[82%] h-[82%] z-[2] flex items-center justify-center transition-transform duration-100 hover:scale-110 cursor-grab active:cursor-grabbing"
+                style={{ filter: 'drop-shadow(0px 2px 3px rgba(0,0,0,0.4))' }}
                 dangerouslySetInnerHTML={{ __html: PIECE_SVG[piece.color + piece.type.toUpperCase()] }}
               />
             )}
 
             {/* Coordinates */}
             {col === 0 && (
-              <span className={`absolute top-0.5 left-1 text-[10px] sm:text-[11px] font-bold pointer-events-none z-[3] ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
+              <span className={`absolute top-[2px] left-[4px] text-[10px] font-bold pointer-events-none z-[3] select-none ${isLight ? 'text-[#B58863]' : 'text-[#F0D9B5]'}`}>
                 {flipped ? row + 1 : 8 - row}
               </span>
             )}
             {row === 7 && (
-              <span className={`absolute bottom-0 right-1 text-[10px] sm:text-[11px] font-bold pointer-events-none z-[3] ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
-                {flipped ? 'gfedcbah'[col] : 'abcdefgh'[col]}
+              <span className={`absolute bottom-[1px] right-[4px] text-[10px] font-bold pointer-events-none z-[3] select-none ${isLight ? 'text-[#B58863]' : 'text-[#F0D9B5]'}`}>
+                {flipped ? 'hgfedcba'[col] : 'abcdefgh'[col]}
               </span>
             )}
           </div>
@@ -79,30 +80,36 @@ export default React.memo(function ChessBoard({ game, flipped, selectedSquare, h
   };
 
   return (
-    <div className="relative w-full max-w-[480px] aspect-square rounded overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.6),0_0_0_2px_rgba(255,255,255,0.08)] shrink-0">
-      <div className="grid grid-cols-8 grid-rows-8 w-full h-full select-none">
-        {renderCells()}
-      </div>
+    <div className="relative w-full aspect-square">
+      {/* Outer wooden frame */}
+      <div className="absolute -inset-[6px] rounded-lg bg-gradient-to-br from-[#6B4F3A] via-[#5A422E] to-[#4A3626] shadow-[0_8px_30px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.1)]" />
+      {/* Board */}
+      <div className="relative rounded-[3px] overflow-hidden z-10">
+        <div className="grid grid-cols-8 grid-rows-8 w-full aspect-square select-none">
+          {renderCells()}
+        </div>
 
-      {/* Suggestion Arrow Overlay */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none z-20" viewBox="0 0 8 8">
-        <defs>
-          <marker id="arrowhead-hint" markerWidth="3" markerHeight="4" refX="2" refY="2" orient="auto">
-            <polygon points="0 0, 3 2, 0 4" fill="rgba(100,255,100,0.85)"/>
-          </marker>
-        </defs>
-        {hintArrow && (
-          <line
-            x1={getSquareCoords(hintArrow.from, flipped).col + 0.5}
-            y1={getSquareCoords(hintArrow.from, flipped).row + 0.5}
-            x2={getSquareCoords(hintArrow.to, flipped).col + 0.5}
-            y2={getSquareCoords(hintArrow.to, flipped).row + 0.5}
-            stroke="rgba(100,255,100,0.85)"
-            strokeWidth="0.15"
-            markerEnd="url(#arrowhead-hint)"
-          />
-        )}
-      </svg>
+        {/* Hint arrow overlay */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none z-20" viewBox="0 0 8 8">
+          <defs>
+            <marker id="arrowhead-hint" markerWidth="3" markerHeight="4" refX="2" refY="2" orient="auto">
+              <polygon points="0 0, 3 2, 0 4" fill="rgba(100,200,100,0.9)"/>
+            </marker>
+          </defs>
+          {hintArrow && (
+            <line
+              x1={getSquareCoords(hintArrow.from, flipped).col + 0.5}
+              y1={getSquareCoords(hintArrow.from, flipped).row + 0.5}
+              x2={getSquareCoords(hintArrow.to, flipped).col + 0.5}
+              y2={getSquareCoords(hintArrow.to, flipped).row + 0.5}
+              stroke="rgba(100,200,100,0.9)"
+              strokeWidth="0.18"
+              markerEnd="url(#arrowhead-hint)"
+              strokeLinecap="round"
+            />
+          )}
+        </svg>
+      </div>
     </div>
   );
 });

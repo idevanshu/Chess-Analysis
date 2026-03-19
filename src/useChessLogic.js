@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Chess } from 'chess.js';
+import { useStockfish } from './useStockfish';
 
 export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
   const [game, setGame] = useState(() => new Chess());
@@ -11,76 +12,88 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [playerColor, setPlayerColor] = useState('w');
   const [hintArrow, setHintArrow] = useState(null);
+  const { isReady: stockfishReady, getBestMove } = useStockfish();
 
-  const getAIMove = () => {
+  // Convert Stockfish UCI move (e.g. "e2e4") to chess.js move object
+  const applyUciMove = (uciMove) => {
+    const from = uciMove.slice(0, 2);
+    const to = uciMove.slice(2, 4);
+    const promotion = uciMove.length > 4 ? uciMove[4] : undefined;
+    const moveOptions = { from, to };
+    if (promotion) moveOptions.promotion = promotion;
+    return game.move(moveOptions);
+  };
+
+  const getAIMove = async () => {
     if (gameOver) return;
     setIsAiThinking(true);
-    
-    // Store valid moves outside so they map correctly to the CURRENT board state
+
     const moves = game.moves({ verbose: true });
     if (moves.length === 0) {
       setIsAiThinking(false);
       return;
     }
-    
-    setTimeout(() => {
-      // Very simple greedy AI: Take a piece with the highest value if possible, else random
-      let chosenMove = moves[Math.floor(Math.random() * moves.length)];
-      
-      const pieceValues = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
-      let bestValue = -1;
 
-      // Find best capturing move
-      for (let move of moves) {
-        if (move.captured) {
-          const val = pieceValues[move.captured] || 0;
-          if (val > bestValue) {
-            // Use skill level to determine if AI makes mistakes
-            const skillLevel = currentPlayer?.skillLevel || 10;
-            const shouldUseError = Math.random() < (1 - (skillLevel / 20));
-            
-            if (!shouldUseError) {
-              bestValue = val;
-              chosenMove = move;
-            }
-          }
-        }
+    const depth = currentPlayer?.depth || 15;
+    const skillLevel = currentPlayer?.skillLevel ?? 10;
+    const currentFen = game.fen();
+
+    try {
+      // Use Stockfish engine for the AI move
+      const bestUci = stockfishReady
+        ? await getBestMove(currentFen, depth, skillLevel)
+        : null;
+
+      let moveObj = null;
+
+      if (bestUci) {
+        moveObj = applyUciMove(bestUci);
       }
 
-      try {
-        const moveObj = game.move(chosenMove.san);
-        if (moveObj) {
-          setFen(game.fen());
-          setMoveHistory((prev) => [...prev, moveObj]);
-          
-          if (moveObj.captured) {
-            setCaptured(prev => ({
-              ...prev,
-              [moveObj.color]: [...prev[moveObj.color], moveObj.captured]
-            }));
-          }
-          
-          // Always reset AI thinking flag after move
-          setIsAiThinking(false);
-          
-          // Check if game is over after AI move
-          checkGameOver();
-        } else {
-          console.error("AI move failed:", chosenMove.san);
-          setIsAiThinking(false);
+      // Fallback: pick a random legal move if Stockfish fails
+      if (!moveObj) {
+        const fallback = moves[Math.floor(Math.random() * moves.length)];
+        moveObj = game.move(fallback.san);
+      }
+
+      if (moveObj) {
+        setFen(game.fen());
+        setMoveHistory((prev) => [...prev, moveObj]);
+
+        if (moveObj.captured) {
+          setCaptured(prev => ({
+            ...prev,
+            [moveObj.color]: [...prev[moveObj.color], moveObj.captured]
+          }));
         }
-      } catch (e) {
-        console.error("AI Move error:", e, "Move:", chosenMove.san);
+
+        setIsAiThinking(false);
+        checkGameOver();
+      } else {
         setIsAiThinking(false);
       }
-    }, currentPlayer?.moveTime || 800);
+    } catch (e) {
+      console.error('AI Move error:', e);
+      setIsAiThinking(false);
+    }
   };
 
-  const requestHint = () => {
+  const requestHint = async () => {
     if (gameOver || game.turn() !== playerColor) return;
+
+    if (stockfishReady) {
+      const bestUci = await getBestMove(game.fen(), 12, 20);
+      if (bestUci) {
+        const from = bestUci.slice(0, 2);
+        const to = bestUci.slice(2, 4);
+        setHintArrow({ from, to });
+        return;
+      }
+    }
+
+    // Fallback: random legal move
     const moves = game.moves({ verbose: true });
     if (moves.length > 0) {
-      // Just suggest a random valid move as a fallback since no Stockfish
       const move = moves[Math.floor(Math.random() * moves.length)];
       setHintArrow({ from: move.from, to: move.to });
     }
@@ -96,14 +109,10 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
 
   // Trigger AI's first move when player switches to black
   useEffect(() => {
-    if (gameMode === 'ai' && playerColor === 'b' && moveHistory.length === 0 && !gameOver) {
-      setIsAiThinking(true);
-      const timer = setTimeout(() => {
-        getAIMove();
-      }, 500);
-      return () => clearTimeout(timer);
+    if (gameMode === 'ai' && playerColor === 'b' && moveHistory.length === 0 && !gameOver && stockfishReady) {
+      getAIMove();
     }
-  }, [playerColor]);
+  }, [playerColor, stockfishReady]);
 
   const handleSquareClick = (square, selectedSquare) => {
     const isLocal = gameMode === 'local';
@@ -152,11 +161,7 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
 
     // In AI mode, trigger AI move if game is not over and it's AI's turn
     if (gameMode === 'ai' && !isOver && game.turn() !== playerColor) {
-      console.log('Triggering AI move - current turn:', game.turn(), 'player color:', playerColor);
-      // Small delay to let UI update before AI thinks
-      setTimeout(() => {
-        getAIMove();
-      }, 100);
+      getAIMove();
     }
   };
 
