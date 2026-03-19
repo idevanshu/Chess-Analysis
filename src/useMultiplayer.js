@@ -7,8 +7,8 @@ export function useMultiplayer(roomCode, userId, onOpponentMove, onGameEnded) {
   useEffect(() => {
     if (!roomCode || !userId) return;
 
-    // Initialize socket connection
-    socketRef.current = io(window.location.origin, {
+    // Initialize socket connection using root so Vite proxy catches /socket.io
+    socketRef.current = io('/', {
       transports: ['websocket', 'polling']
     });
 

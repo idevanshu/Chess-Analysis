@@ -45,6 +45,10 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, passwordConfirm: password, name })
       });
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server unreachable or returned invalid response. Please ensure backend is running.');
+      }
       const data = await response.json();
       if (response.ok) {
         setToken(data.token);
@@ -65,6 +69,10 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server unreachable or returned invalid response. Please ensure backend is running.');
+      }
       const data = await response.json();
       if (response.ok) {
         setToken(data.token);

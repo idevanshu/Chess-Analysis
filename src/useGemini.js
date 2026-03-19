@@ -61,6 +61,7 @@ export function useGemini(currentPlayer) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let fullText = '';
+      let buffer = '';
       
       // Add empty stream message
       setMessages((prev) => [...prev, { role: 'model', parts: [{ text: '' }], isStreaming: true }]);
@@ -69,25 +70,35 @@ export function useGemini(currentPlayer) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop(); // keep incomplete block
         
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim();
-            if (data === '[DONE]') continue;
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.text) {
-                fullText += parsed.text;
-                // Update last message
-                setMessages((prev) => {
-                  const newMsgs = [...prev];
-                  newMsgs[newMsgs.length - 1].parts[0].text = fullText;
-                  return newMsgs;
-                });
+        for (const block of blocks) {
+          const lines = block.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') continue;
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.text) {
+                  fullText += parsed.text;
+                  // Update last message immutably
+                  setMessages((prev) => {
+                    const newMsgs = [...prev];
+                    const lastMsg = newMsgs[newMsgs.length - 1];
+                    newMsgs[newMsgs.length - 1] = {
+                      ...lastMsg,
+                      parts: [{ text: fullText }]
+                    };
+                    return newMsgs;
+                  });
+                }
+              } catch (e) {
+                console.error("SSE parse error:", e, data);
               }
-            } catch (e) {}
+            }
           }
         }
       }

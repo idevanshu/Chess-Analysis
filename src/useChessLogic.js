@@ -1,25 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Chess } from 'chess.js';
 
-// Fallback for older versions of chess.js that export default
-const createChessInstance = () => {
-    try {
-        return new Chess();
-    } catch {
-        // If it fails, try requiring it directly or accessing default
-        const ChessConstructor = window.Chess || require('chess.js');
-        return new ChessConstructor();
-    }
-}
-
-export function useChessLogic(currentPlayer, hintsEnabled, isMultiplayer = false) {
-  const [game, setGame] = useState(() => {
-    try { return new Chess(); } 
-    catch(e) { 
-        const ChessImport = require('chess.js'); 
-        return new (ChessImport.Chess || ChessImport)(); 
-    }
-  });
+export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
+  const [game, setGame] = useState(() => new Chess());
   const [fen, setFen] = useState(game.fen());
   const [moveHistory, setMoveHistory] = useState([]);
   const [gameOver, setGameOver] = useState(false);
@@ -36,8 +19,8 @@ export function useChessLogic(currentPlayer, hintsEnabled, isMultiplayer = false
     // Store valid moves outside so they map correctly to the CURRENT board state
     const moves = game.moves({ verbose: true });
     if (moves.length === 0) {
-        setIsAiThinking(false);
-        return;
+      setIsAiThinking(false);
+      return;
     }
     
     setTimeout(() => {
@@ -47,35 +30,48 @@ export function useChessLogic(currentPlayer, hintsEnabled, isMultiplayer = false
       const pieceValues = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
       let bestValue = -1;
 
+      // Find best capturing move
       for (let move of moves) {
         if (move.captured) {
-           const val = pieceValues[move.captured];
-           // Adjust value slightly based on opponent strength simulating errors
-           if (val > bestValue && Math.random() < (currentPlayer?.skillLevel || 10) / 20 * 1.5) {
-             bestValue = val;
-             chosenMove = move;
-           }
+          const val = pieceValues[move.captured] || 0;
+          if (val > bestValue) {
+            // Use skill level to determine if AI makes mistakes
+            const skillLevel = currentPlayer?.skillLevel || 10;
+            const shouldUseError = Math.random() < (1 - (skillLevel / 20));
+            
+            if (!shouldUseError) {
+              bestValue = val;
+              chosenMove = move;
+            }
+          }
         }
       }
 
       try {
         const moveObj = game.move(chosenMove.san);
         if (moveObj) {
-            setFen(game.fen());
-            setMoveHistory((prev) => [...prev, moveObj]);
-            
-            if (moveObj.captured) {
-              setCaptured(prev => ({
-                ...prev,
-                [moveObj.color]: [...prev[moveObj.color], moveObj.captured]
-              }));
-            }
-            if (!checkGameOver()) {
-                setIsAiThinking(false);
-            }
+          setFen(game.fen());
+          setMoveHistory((prev) => [...prev, moveObj]);
+          
+          if (moveObj.captured) {
+            setCaptured(prev => ({
+              ...prev,
+              [moveObj.color]: [...prev[moveObj.color], moveObj.captured]
+            }));
+          }
+          
+          // Always reset AI thinking flag after move
+          setIsAiThinking(false);
+          
+          // Check if game is over after AI move
+          checkGameOver();
+        } else {
+          console.error("AI move failed:", chosenMove.san);
+          setIsAiThinking(false);
         }
       } catch (e) {
-        console.error("AI Move error", e);
+        console.error("AI Move error:", e, "Move:", chosenMove.san);
+        setIsAiThinking(false);
       }
     }, currentPlayer?.moveTime || 800);
   };
@@ -98,12 +94,32 @@ export function useChessLogic(currentPlayer, hintsEnabled, isMultiplayer = false
     }
   }, [hintsEnabled, fen]);
 
+  // Trigger AI's first move when player switches to black
+  useEffect(() => {
+    if (gameMode === 'ai' && playerColor === 'b' && moveHistory.length === 0 && !gameOver) {
+      setIsAiThinking(true);
+      const timer = setTimeout(() => {
+        getAIMove();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [playerColor]);
+
   const handleSquareClick = (square, selectedSquare) => {
-    if (gameOver || isAiThinking || game.turn() !== playerColor) return null;
+    const isLocal = gameMode === 'local';
+    const currentTurnColor = game.turn();
+    if (gameOver || isAiThinking) return null;
+    if (!isLocal && currentTurnColor !== playerColor) return null;
 
     if (selectedSquare) {
       try {
-        const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
+        const moves = game.moves({ square: selectedSquare, verbose: true });
+        const isPromotion = moves.some(m => m.to === square && m.promotion);
+        
+        const moveOptions = { from: selectedSquare, to: square };
+        if (isPromotion) moveOptions.promotion = 'q';
+
+        const move = game.move(moveOptions);
         if (move) {
           onMoveMade(move);
           return null; // deselect
@@ -114,8 +130,9 @@ export function useChessLogic(currentPlayer, hintsEnabled, isMultiplayer = false
     }
 
     const piece = game.get(square);
-    if (piece && piece.color === playerColor) {
-      return square;
+    if (piece) {
+      if (isLocal && piece.color === currentTurnColor) return square;
+      if (!isLocal && piece.color === playerColor) return square;
     }
     return null;
   };
@@ -133,9 +150,13 @@ export function useChessLogic(currentPlayer, hintsEnabled, isMultiplayer = false
 
     const isOver = checkGameOver();
 
-    // In multiplayer mode, don't trigger AI move
-    if (!isMultiplayer && !isOver && game.turn() !== playerColor) {
-      getAIMove();
+    // In AI mode, trigger AI move if game is not over and it's AI's turn
+    if (gameMode === 'ai' && !isOver && game.turn() !== playerColor) {
+      console.log('Triggering AI move - current turn:', game.turn(), 'player color:', playerColor);
+      // Small delay to let UI update before AI thinks
+      setTimeout(() => {
+        getAIMove();
+      }, 100);
     }
   };
 
@@ -162,12 +183,7 @@ export function useChessLogic(currentPlayer, hintsEnabled, isMultiplayer = false
     setGameResult(null);
     setCaptured({ w: [], b: [] });
     setHintArrow(null);
-    
-    // In multiplayer mode don't start with AI thinking
-    if (!isMultiplayer && playerColor === 'b') {
-      setIsAiThinking(true);
-      setTimeout(getAIMove, 500);
-    }
+    setIsAiThinking(false);
   };
 
   const resign = () => {
@@ -176,8 +192,25 @@ export function useChessLogic(currentPlayer, hintsEnabled, isMultiplayer = false
     setGameResult('You resigned. Opponent Wins!');
   };
 
+  const forceGameOver = (result) => {
+    setGameOver(true);
+    setGameResult(result);
+  };
+
+  const makeExternalMove = (san) => {
+    try {
+      if (gameOver) return;
+      const moveObj = game.move(san);
+      if (moveObj) {
+        onMoveMade(moveObj);
+      }
+    } catch (e) {
+      console.error("Invalid external move", e);
+    }
+  };
+
   return {
     game, fen, moveHistory, gameOver, gameResult, captured, isAiThinking,
-    playerColor, setPlayerColor, handleSquareClick, resetGame, hintArrow, resign
+    playerColor, setPlayerColor, handleSquareClick, resetGame, hintArrow, resign, forceGameOver, makeExternalMove
   };
 }

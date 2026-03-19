@@ -1,82 +1,80 @@
-import { useState } from 'react';
-import { Users, Robot, Zap } from 'lucide-react';
-import RoomCreation from './RoomCreation';
-import RoomJoin from './RoomJoin';
+import { useState, useEffect } from 'react';
+import { Users, Bot, Share2, MonitorSmartphone } from 'lucide-react';
+import OnlineMultiplayer from './OnlineMultiplayer';
 
-export default function GameMode({ onPlayAI, onMultiplayerStart }) {
-  console.log('GameMode component rendering...');
+export default function GameMode({ onPlayAI, onMultiplayerStart, onLocalStart, autoJoinRoomCode }) {
   const [selectedMode, setSelectedMode] = useState(null);
 
+  // When autoJoinRoomCode is set (from URL), automatically select online mode
+  useEffect(() => {
+    if (autoJoinRoomCode) {
+      setSelectedMode('online');
+    }
+  }, [autoJoinRoomCode]);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl p-8 max-w-2xl w-full mx-4">
-        <h2 className="text-2xl font-bold mb-6 text-center">Choose Game Mode</h2>
+    <div className="w-full h-full flex flex-col p-4 text-white">
+      <h2 className="text-sm tracking-wider uppercase font-bold text-white/40 mb-4 border-b border-white/10 pb-2">Choose Mode</h2>
 
-        {!selectedMode ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Play AI */}
-            <button
-              onClick={() => onPlayAI()}
-              className="flex flex-col items-center gap-3 p-6 border-2 border-gray-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition"
-            >
-              <Robot size={32} className="text-purple-600" />
-              <h3 className="font-semibold">Play Against AI</h3>
-              <p className="text-xs text-gray-600 text-center">Challenge one of our AI opponents</p>
-            </button>
+      {!selectedMode ? (
+        <div className="flex flex-col gap-3">
+          {/* Play AI */}
+          <button
+            onClick={() => onPlayAI()}
+            className="flex items-center gap-4 p-3 border border-white/10 bg-white/5 rounded-xl hover:border-purple-500/50 hover:bg-purple-500/10 transition-all text-left group"
+          >
+            <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform"><Bot size={20} /></div>
+            <div>
+              <h3 className="font-semibold text-sm text-white/90">Play Against AI</h3>
+              <p className="text-[11px] text-white/50">Challenge legendary bots</p>
+            </div>
+          </button>
 
-            {/* Create Room */}
-            <button
-              onClick={() => setSelectedMode('create')}
-              className="flex flex-col items-center gap-3 p-6 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition"
-            >
-              <Zap size={32} className="text-blue-600" />
-              <h3 className="font-semibold">Create Room</h3>
-              <p className="text-xs text-gray-600 text-center">Host a game and invite a friend</p>
-            </button>
+          {/* Local Multiplayer */}
+          <button
+            onClick={() => onLocalStart()}
+            className="flex items-center gap-4 p-3 border border-white/10 bg-white/5 rounded-xl hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-all text-left group"
+          >
+            <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform"><MonitorSmartphone size={20} /></div>
+            <div>
+              <h3 className="font-semibold text-sm text-white/90">Local Multiplayer</h3>
+              <p className="text-[11px] text-white/50">Play side-by-side</p>
+            </div>
+          </button>
 
-            {/* Join Room */}
-            <button
-              onClick={() => setSelectedMode('join')}
-              className="flex flex-col items-center gap-3 p-6 border-2 border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition"
-            >
-              <Users size={32} className="text-green-600" />
-              <h3 className="font-semibold">Join Room</h3>
-              <p className="text-xs text-gray-600 text-center">Join a friend's game</p>
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <button
-              onClick={() => setSelectedMode(null)}
-              className="text-sm text-gray-600 hover:text-gray-800 mb-4"
-            >
-              ← Back
-            </button>
+          {/* Play with Friend Online */}
+          <button
+            onClick={() => setSelectedMode('online')}
+            className="flex items-center gap-4 p-3 border border-white/10 bg-white/5 rounded-xl hover:border-cyan-500/50 hover:bg-cyan-500/10 transition-all text-left group"
+          >
+            <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform"><Share2 size={20} /></div>
+            <div>
+              <h3 className="font-semibold text-sm text-white/90">Play with Friend Online</h3>
+              <p className="text-[11px] text-white/50">Share a link to play together</p>
+            </div>
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col h-full">
+          <button
+            onClick={() => setSelectedMode(null)}
+            className="text-xs text-white/50 hover:text-white mb-4 flex items-center gap-1 w-fit transition-colors"
+          >
+            ← Back to modes
+          </button>
 
-            {selectedMode === 'create' && (
-              <div>
-                <h3 className="font-semibold mb-4">Create a Multiplayer Room</h3>
-                <RoomCreation
-                  onRoomCreated={(roomCode) => {
-                    onMultiplayerStart('host', roomCode);
-                  }}
-                />
-              </div>
-            )}
-
-            {selectedMode === 'join' && (
-              <div>
-                <h3 className="font-semibold mb-4">Join a Room</h3>
-                <RoomJoin
-                  onRoomJoined={(roomCode, data) => {
-                    onMultiplayerStart('guest', roomCode, data);
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+          {selectedMode === 'online' && (
+            <div className="flex-1">
+              <OnlineMultiplayer
+                autoJoinRoomCode={autoJoinRoomCode}
+                onGameStart={(role, roomCode, data) => {
+                  onMultiplayerStart(role, roomCode, data);
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

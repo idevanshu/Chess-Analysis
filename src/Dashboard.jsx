@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { LogOut, BarChart3, Trophy, Zap, Target, TrendingUp, Clock, Award } from 'lucide-react';
+import { LogOut, BarChart3, Trophy, Zap, Target, TrendingUp, Clock, Award, RefreshCw } from 'lucide-react';
 
 export default function Dashboard() {
   const { user, token, logout } = useAuth();
@@ -9,33 +9,80 @@ export default function Dashboard() {
   const [games, setGames] = useState([]);
   const [performance, setPerformance] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchDashboardData();
+    if (token) {
+      fetchDashboardData();
+      
+      // Auto-refresh stats every 3 seconds to catch updated game stats
+      const interval = setInterval(() => {
+        fetchDashboardData();
+      }, 3000);
+
+      // Also refresh when tab becomes visible (user returning to dashboard)
+      const handleVisibilityChange = () => {
+        if (!document.hidden) {
+          fetchDashboardData();
+        }
+      };
+      
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    }
   }, [token]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (isRefresh = false) => {
     try {
+      if (isRefresh) setRefreshing(true);
+      console.log('Fetching dashboard data... Token present:', !!token);
+      
       const [profileRes, gamesRes, statsRes] = await Promise.all([
         fetch('/api/auth/profile', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/games/history', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/stats/performance', { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
+      console.log('API responses:', {
+        profile: profileRes.status,
+        games: gamesRes.status,
+        performance: statsRes.status
+      });
+
       if (profileRes.ok) {
         const data = await profileRes.json();
+        console.log('Profile data received:', data.user?.stats);
         setStats(data.user);
+      } else {
+        const error = await profileRes.json();
+        console.error('Profile fetch failed:', error);
       }
+
       if (gamesRes.ok) {
-        setGames(await gamesRes.json());
+        const games = await gamesRes.json();
+        console.log('Games received:', games.length, 'games');
+        setGames(games);
+      } else {
+        console.error('Games fetch failed with status:', gamesRes.status);
       }
+
       if (statsRes.ok) {
-        setPerformance(await statsRes.json());
+        const perf = await statsRes.json();
+        console.log('Performance data received:', perf);
+        setPerformance(perf);
+      } else {
+        console.log('Performance data not available (status:', statsRes.status, ')');
+        setPerformance(null);
       }
     } catch (error) {
       console.error('Dashboard fetch error:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -74,13 +121,24 @@ export default function Dashboard() {
               <p className="text-xs text-white/40">{user?.email}</p>
             </div>
           </div>
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-sm text-white transition-all"
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchDashboardData(true)}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-sm text-white transition-all disabled:opacity-50"
+              title="Refresh stats"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
+            <button
+              onClick={logout}
+              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-sm text-white transition-all"
+            >
+              <LogOut className="w-4 h-4" />
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 

@@ -118,11 +118,19 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Get user profile
+// Get user profile - fetch fresh data from DB (no caching)
 app.get('/api/auth/profile', verifyToken, async (req, res) => {
   try {
-    const user = await User.findById(req.userId);
+    // Force fresh read from database, bypass any caching
+    const user = await User.findById(req.userId).lean();
     if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    console.log('Profile endpoint returning stats:', {
+      totalGames: user.stats?.totalGames,
+      wins: user.stats?.wins,
+      winRate: user.stats?.winRate,
+      averageAccuracy: user.moveAnalysis?.averageAccuracy
+    });
     
     res.json({ 
       user: { 
@@ -140,88 +148,287 @@ app.get('/api/auth/profile', verifyToken, async (req, res) => {
   }
 });
 
+// DEBUG: Check user stats
+app.get('/api/debug/user-stats', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    const games = await Game.countDocuments({ userId: req.userId });
+    
+    res.json({
+      userId: user._id,
+      name: user.name,
+      email: user.email,
+      stats: user.stats,
+      moveAnalysis: user.moveAnalysis,
+      gameCount: games,
+      _raw_stats: JSON.parse(JSON.stringify(user.stats)), // Force stringify/parse to see raw data
+      _raw_moveAnalysis: JSON.parse(JSON.stringify(user.moveAnalysis))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ===== GAME TRACKING ROUTES =====
 
 // Save game
 app.post('/api/games/save', verifyToken, async (req, res) => {
   try {
-    const { opponent, opponentElo, playerColor, result, moves, duration, openingName } = req.body;
-    
-    const game = new Game({
-      userId: req.userId,
-      opponent,
-      opponentElo,
-      playerColor,
-      result,
-      moves,
-      duration,
+    console.log('=== GAME SAVE ENDPOINT ===');
+    const { 
+      opponent, 
+      opponentElo, 
+      playerColor, 
+      result, 
+      moves, 
+      duration, 
       openingName,
-      analysis: {
-        totalAccuracy: calculateAccuracy(moves),
-        bestMoveCount: moves.filter(m => m.moveType === 'best').length,
-        blunderCount: moves.filter(m => m.moveType === 'blunder').length
-      }
-    });
-
-    await game.save();
-
-    // Update user stats
-    const user = await User.findById(req.userId);
-    user.stats.totalGames += 1;
-    user.stats.totalMoves += moves.length;
+      gameMode = 'ai',
+      difficulty = 'medium',
+      resultDetails = 'stopped'
+    } = req.body;
     
-    if (result === 'win') user.stats.wins += 1;
-    if (result === 'loss') user.stats.losses += 1;
-    if (result === 'draw') user.stats.draws += 1;
+    console.log('Request data:', { opponent, opponentElo, playerColor, result, movesCount: moves?.length, duration, gameMode, difficulty });
     
-    user.stats.winRate = (user.stats.wins / user.stats.totalGames * 100).toFixed(2);
-    user.stats.favoriteOpponent = opponent;
+    if (!moves || moves.length === 0) {
+      return res.status(400).json({ error: 'No moves provided' });
+    }
 
-    // Update move analysis
+    const gameAccuracy = calculateAccuracy(moves);
+    console.log('Game accuracy:', gameAccuracy);
+    
+    // Count move types
     const blunderCount = moves.filter(m => m.moveType === 'blunder').length;
     const tacticalCount = moves.filter(m => m.moveType === 'tactical').length;
     const strategicCount = moves.filter(m => m.moveType === 'strategic').length;
     const bestCount = moves.filter(m => m.moveType === 'best').length;
+    
+    const game = new Game({
+      userId: req.userId,
+      gameMode,
+      difficulty,
+      opponent: {
+        name: opponent,
+        type: gameMode === 'ai' ? 'stockfish' : 'human',
+        elo: opponentElo
+      },
+      opponentElo,
+      playerColor,
+      result,
+      resultDetails,
+      moves,
+      duration,
+      openingName: openingName || 'Unknown Opening',
+      gameDate: new Date(),
+      startTime: new Date(),
+      endTime: new Date(),
+      analysis: {
+        totalAccuracy: gameAccuracy,
+        blunderCount,
+        tacticalCount,
+        bestMoveCount: bestCount,
+        strategicCount,
+        tacticalOpportunities: tacticalCount + blunderCount
+      }
+    });
 
-    user.moveAnalysis.blunders += blunderCount;
-    user.moveAnalysis.tacticalMoves += tacticalCount;
-    user.moveAnalysis.strategicMoves += strategicCount;
-    user.moveAnalysis.bestMoves += bestCount;
-    user.moveAnalysis.averageAccuracy = game.analysis.totalAccuracy;
+    await game.save();
+    console.log('Game saved to database');
 
+    // Get fresh user data
+    const user = await User.findById(req.userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    console.log('Current user stats before update:', user.stats);
+
+    // Ensure stats object exists and has all fields
+    if (!user.stats) {
+      user.stats = {
+        totalGames: 0, wins: 0, losses: 0, draws: 0,
+        totalMoves: 0, avgMoveTime: 0, winRate: 0,
+        favoriteOpponent: null, eloRating: 1200
+      };
+    }
+
+    if (!user.moveAnalysis) {
+      user.moveAnalysis = {
+        tacticalMoves: 0, strategicMoves: 0,
+        blunders: 0, bestMoves: 0, averageAccuracy: 0
+      };
+    }
+
+    // Update stats
+    user.stats.totalGames = (user.stats.totalGames || 0) + 1;
+    user.stats.totalMoves = (user.stats.totalMoves || 0) + moves.length;
+
+    if (result === 'win') {
+      user.stats.wins = (user.stats.wins || 0) + 1;
+      // Update win streak
+      user.currentWinStreak = (user.currentWinStreak || 0) + 1;
+      user.currentLossStreak = 0;
+      // Update best win streak
+      if (user.currentWinStreak > user.bestWinStreak) {
+        user.bestWinStreak = user.currentWinStreak;
+      }
+    } else if (result === 'loss') {
+      user.stats.losses = (user.stats.losses || 0) + 1;
+      // Update loss streak
+      user.currentLossStreak = (user.currentLossStreak || 0) + 1;
+      user.currentWinStreak = 0;
+    } else if (result === 'draw') {
+      user.stats.draws = (user.stats.draws || 0) + 1;
+      // Draws don't affect streaks
+    }
+
+    // Calculate win rate SAFELY
+    const totalGames = user.stats.totalGames;
+    if (totalGames > 0) {
+      const winPercentage = (user.stats.wins / totalGames) * 100;
+      user.stats.winRate = Math.round(winPercentage);
+      console.log(`Calculating win rate: ${user.stats.wins} wins / ${totalGames} games = ${winPercentage}% = ${user.stats.winRate}%`);
+    } else {
+      user.stats.winRate = 0;
+    }
+    user.stats.favoriteOpponent = opponent;
+
+    // Update move analysis (using move type counts from lines 203-206)
+    user.moveAnalysis.blunders = (user.moveAnalysis.blunders || 0) + blunderCount;
+    user.moveAnalysis.tacticalMoves = (user.moveAnalysis.tacticalMoves || 0) + tacticalCount;
+    user.moveAnalysis.strategicMoves = (user.moveAnalysis.strategicMoves || 0) + strategicCount;
+    user.moveAnalysis.bestMoves = (user.moveAnalysis.bestMoves || 0) + bestCount;
+
+    // Calculate average accuracy - with detailed logging
+    console.log('Calculating accuracy for game with', moves.length, 'moves');
+    console.log('Move accuracies:', moves.map(m => ({ san: m.san, accuracy: m.accuracy })));
+    
+    if (user.stats.totalGames === 1) {
+      user.moveAnalysis.averageAccuracy = gameAccuracy;
+      console.log('First game - setting average accuracy to:', gameAccuracy);
+    } else {
+      const allGames = await Game.find({ userId: req.userId });
+      const allAccuracies = allGames
+        .filter(g => g.analysis && g.analysis.totalAccuracy !== undefined)
+        .map(g => g.analysis.totalAccuracy);
+      allAccuracies.push(gameAccuracy);
+      
+      const avgAccuracy = Math.round(
+        allAccuracies.reduce((sum, acc) => sum + acc, 0) / (allAccuracies.length || 1)
+      );
+      user.moveAnalysis.averageAccuracy = avgAccuracy;
+      console.log('Multiple games - prior games accuracies:', allGames.map(g => g.analysis?.totalAccuracy), 'new accuracy:', gameAccuracy, 'average:', avgAccuracy);
+    }
+
+    if (!user.gameHistory) {
+      user.gameHistory = [];
+    }
     user.gameHistory.push(game._id);
-    await user.save();
+    
+    // Keep recent games list (last 10 games)
+    if (!user.recentGames) {
+      user.recentGames = [];
+    }
+    user.recentGames.unshift(game._id); // Add to beginning
+    if (user.recentGames.length > 10) {
+      user.recentGames.pop(); // Remove oldest if > 10
+    }
+    
+    // Update last game played
+    user.lastGamePlayed = new Date();
 
-    // Update performance stats
+    // Force Mongoose to recognize changes
+    user.markModified('stats');
+    user.markModified('moveAnalysis');
+    user.markModified('gameHistory');
+    user.markModified('recentGames');
+
+    const savedUser = await user.save();
+    
+    console.log('User stats after update:', {
+      totalGames: savedUser.stats.totalGames,
+      wins: savedUser.stats.wins,
+      losses: savedUser.stats.losses,
+      draws: savedUser.stats.draws,
+      winRate: savedUser.stats.winRate,
+      averageAccuracy: savedUser.moveAnalysis.averageAccuracy,
+      blunders: savedUser.moveAnalysis.blunders,
+      tactical: savedUser.moveAnalysis.tacticalMoves,
+      strategic: savedUser.moveAnalysis.strategicMoves,
+      best: savedUser.moveAnalysis.bestMoves
+    });
+
+    // CRITICAL: Also use updateOne as backup to ensure the update is persisted
+    await User.updateOne(
+      { _id: req.userId },
+      {
+        $set: {
+          'stats.totalGames': savedUser.stats.totalGames,
+          'stats.wins': savedUser.stats.wins,
+          'stats.losses': savedUser.stats.losses,
+          'stats.draws': savedUser.stats.draws,
+          'stats.totalMoves': savedUser.stats.totalMoves,
+          'stats.winRate': savedUser.stats.winRate,
+          'stats.favoriteOpponent': savedUser.stats.favoriteOpponent,
+          'moveAnalysis.blunders': savedUser.moveAnalysis.blunders,
+          'moveAnalysis.tacticalMoves': savedUser.moveAnalysis.tacticalMoves,
+          'moveAnalysis.strategicMoves': savedUser.moveAnalysis.strategicMoves,
+          'moveAnalysis.bestMoves': savedUser.moveAnalysis.bestMoves,
+          'moveAnalysis.averageAccuracy': savedUser.moveAnalysis.averageAccuracy,
+          'currentWinStreak': savedUser.currentWinStreak || 0,
+          'bestWinStreak': savedUser.bestWinStreak || 0,
+          'currentLossStreak': savedUser.currentLossStreak || 0,
+          'lastGamePlayed': new Date()
+        }
+      }
+    );
+    
+    console.log('Backup update with $set operator completed');
+
+    // Update or create performance stats
     let performance = await Performance.findOne({ userId: req.userId });
     if (!performance) {
-      performance = new Performance({ userId: req.userId });
+      performance = new Performance({
+        userId: req.userId,
+        moveTypeDistribution: {
+          blunders: 0,
+          tactical: 0,
+          strategic: 0,
+          best: 0
+        }
+      });
     }
 
-    if (!performance.performanceByOpponent) {
-      performance.performanceByOpponent = new Map();
+    // Ensure moveTypeDistribution exists
+    if (!performance.moveTypeDistribution) {
+      performance.moveTypeDistribution = {
+        blunders: 0, tactical: 0, strategic: 0, best: 0
+      };
     }
 
-    const oppStats = performance.performanceByOpponent.get(opponent) || {
-      gamesPlayed: 0, wins: 0, losses: 0, draws: 0, winRate: 0, avgAccuracy: 0
-    };
-    
-    oppStats.gamesPlayed += 1;
-    if (result === 'win') oppStats.wins += 1;
-    if (result === 'loss') oppStats.losses += 1;
-    if (result === 'draw') oppStats.draws += 1;
-    oppStats.winRate = (oppStats.wins / oppStats.gamesPlayed * 100).toFixed(2);
-    oppStats.avgAccuracy = game.analysis.totalAccuracy;
+    performance.moveTypeDistribution.blunders = (performance.moveTypeDistribution.blunders || 0) + blunderCount;
+    performance.moveTypeDistribution.tactical = (performance.moveTypeDistribution.tactical || 0) + tacticalCount;
+    performance.moveTypeDistribution.strategic = (performance.moveTypeDistribution.strategic || 0) + strategicCount;
+    performance.moveTypeDistribution.best = (performance.moveTypeDistribution.best || 0) + bestCount;
 
-    performance.performanceByOpponent.set(opponent, oppStats);
-    performance.moveTypeDistribution.blunders += blunderCount;
-    performance.moveTypeDistribution.tactical += tacticalCount;
-    performance.moveTypeDistribution.strategic += strategicCount;
-    performance.moveTypeDistribution.best += bestCount;
-
+    performance.markModified('moveTypeDistribution');
     await performance.save();
 
-    res.json({ success: true, game });
+    console.log('=== GAME SAVE COMPLETE ===');
+
+    // Re-fetch user to ensure we're returning the latest saved data
+    const updatedUser = await User.findById(req.userId);
+    
+    res.json({
+      success: true,
+      game,
+      userStats: updatedUser.stats,
+      moveAnalysis: updatedUser.moveAnalysis,
+      message: 'Game saved and stats updated'
+    });
+
   } catch (error) {
     console.error('Game save error:', error);
     res.status(500).json({ error: error.message });
@@ -256,8 +463,24 @@ app.get('/api/stats/performance', verifyToken, async (req, res) => {
 // Helper function to calculate accuracy
 function calculateAccuracy(moves) {
   if (moves.length === 0) return 0;
-  const totalAccuracy = moves.reduce((sum, m) => sum + (m.accuracy || 0), 0);
-  return Math.round(totalAccuracy / moves.length);
+  
+  const accuracies = moves.map(m => m.accuracy || 0).filter(a => a > 0);
+  
+  // If no valid accuracies found, assign reasonable defaults based on move type
+  if (accuracies.length === 0) {
+    const defaultAccuracies = moves.map(m => {
+      if (m.moveType === 'best') return 100;
+      if (m.moveType === 'tactical') return 85;
+      if (m.moveType === 'strategic') return 75;
+      if (m.moveType === 'blunder') return 25;
+      return 75; // default
+    });
+    return Math.round(defaultAccuracies.reduce((sum, a) => sum + a, 0) / defaultAccuracies.length);
+  }
+  
+  // If we have some accuracies, use them
+  const totalAccuracy = accuracies.reduce((sum, m) => sum + m, 0);
+  return Math.round(totalAccuracy / accuracies.length);
 }
 
 // ===== CHAT WITH GEMINI =====
@@ -286,8 +509,18 @@ app.post('/api/chat', async (req, res) => {
       history.shift();
     }
 
+    // Group consecutive messages by role to prevent API crashes
+    let formattedHistory = [];
+    for (const m of history) {
+      if (formattedHistory.length > 0 && formattedHistory[formattedHistory.length - 1].role === m.role) {
+        formattedHistory[formattedHistory.length - 1].parts[0].text += '\n\n' + m.parts[0].text;
+      } else {
+        formattedHistory.push(m);
+      }
+    }
+
     const chat = model.startChat({
-      history: history,
+      history: formattedHistory,
       generationConfig: {
         temperature: 0.85,
         maxOutputTokens: 256,
@@ -325,7 +558,7 @@ app.post('/api/rooms/create', verifyToken, async (req, res) => {
     const gameRoom = new GameRoom({
       roomCode,
       host: req.userId,
-      hostColor: 'white'
+      hostColor: 'w'
     });
     
     await gameRoom.save();
@@ -360,7 +593,7 @@ app.post('/api/rooms/join', verifyToken, async (req, res) => {
     }
     
     gameRoom.guest = req.userId;
-    gameRoom.guestColor = gameRoom.hostColor === 'white' ? 'black' : 'white';
+    gameRoom.guestColor = gameRoom.hostColor === 'w' ? 'b' : 'w';
     gameRoom.status = 'active';
     
     await gameRoom.save();

@@ -23,33 +23,87 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: '👤'
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
+  
+  // Account metadata
+  accountStatus: {
+    type: String,
+    enum: ['active', 'inactive', 'suspended'],
+    default: 'active'
   },
+  lastLogin: Date,
+  lastGamePlayed: Date,
+  subscription: {
+    type: { type: String, default: 'free' },
+    startDate: Date,
+    endDate: Date
+  },
+  
+  // Game statistics
   stats: {
-    totalGames: { type: Number, default: 0 },
-    wins: { type: Number, default: 0 },
-    losses: { type: Number, default: 0 },
-    draws: { type: Number, default: 0 },
-    totalMoves: { type: Number, default: 0 },
-    avgMoveTime: { type: Number, default: 0 },
-    winRate: { type: Number, default: 0 },
-    favoriteOpponent: { type: String, default: null },
-    eloRating: { type: Number, default: 1200 }
+    totalGames: { type: Number, default: 0, min: 0 },
+    wins: { type: Number, default: 0, min: 0 },
+    losses: { type: Number, default: 0, min: 0 },
+    draws: { type: Number, default: 0, min: 0 },
+    totalMoves: { type: Number, default: 0, min: 0 },
+    avgMoveTime: { type: Number, default: 0, min: 0 },
+    winRate: { type: Number, default: 0, min: 0, max: 100 }, // percentage 0-100
+    favoriteOpponent: String,
+    eloRating: { type: Number, default: 1200, min: 0 },
+    peakEloRating: { type: Number, default: 1200, min: 0 },
+    peakEloDate: Date
   },
+  
+  // Move analysis and performance
   moveAnalysis: {
-    tacticalMoves: { type: Number, default: 0 },
-    strategicMoves: { type: Number, default: 0 },
-    blunders: { type: Number, default: 0 },
-    bestMoves: { type: Number, default: 0 },
-    averageAccuracy: { type: Number, default: 0 }
+    tacticalMoves: { type: Number, default: 0, min: 0 },
+    strategicMoves: { type: Number, default: 0, min: 0 },
+    blunders: { type: Number, default: 0, min: 0 },
+    bestMoves: { type: Number, default: 0, min: 0 },
+    averageAccuracy: { type: Number, default: 0, min: 0, max: 100 }, // percentage
+    tacticalAccuracy: { type: Number, default: 0, min: 0, max: 100 }
   },
-  preferredOpenings: [String],
+  
+  // Win streaks
+  currentWinStreak: { type: Number, default: 0, min: 0 },
+  bestWinStreak: { type: Number, default: 0, min: 0 },
+  currentLossStreak: { type: Number, default: 0, min: 0 },
+  
+  // Game preferences
+  preferences: {
+    gameMode: { type: String, enum: ['ai', 'local', 'multiplayer'], default: 'ai' },
+    difficulty: { type: String, enum: ['easy', 'medium', 'hard', 'expert'], default: 'medium' },
+    timeControl: { type: Number, default: 300 }, // seconds per side
+    notifications: { type: Boolean, default: true },
+    showAnalysis: { type: Boolean, default: true }
+  },
+  
+  // Opening preparation
+  preferredOpenings: [
+    {
+      name: String,
+      eco: String,
+      gamesPlayed: { type: Number, default: 0 },
+      winRate: { type: Number, default: 0 }
+    }
+  ],
+  
+  // Game history reference
   gameHistory: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Game'
-  }]
+  }],
+  
+  // Recently played games (for quick access)
+  recentGames: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Game'
+  }],
+  
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+  
 }, { timestamps: true });
 
 // Hash password before saving
@@ -74,5 +128,10 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 userSchema.virtual('passwordConfirm')
   .get(function() { return this._passwordConfirm; })
   .set(function(value) { this._passwordConfirm = value; });
+
+// Index for frequently queried fields
+userSchema.index({ email: 1 });
+userSchema.index({ 'stats.eloRating': -1 });
+userSchema.index({ lastGamePlayed: -1 });
 
 export default mongoose.model('User', userSchema);

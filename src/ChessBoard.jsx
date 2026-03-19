@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PIECE_SVG, getSquareName, getSquareCoords } from './utils';
 
-export default function ChessBoard({ game, flipped, selectedSquare, handleSquareClick, lastMove, hintArrow }) {
+export default React.memo(function ChessBoard({ game, flipped, selectedSquare, handleSquareClick, lastMove, hintArrow }) {
   const [legalMoves, setLegalMoves] = useState([]);
   const board = game.board();
 
@@ -29,20 +29,19 @@ export default function ChessBoard({ game, flipped, selectedSquare, handleSquare
         const piece = game.get(sq);
         
         // Colors - sleek premium slate/blue theme
-        let bgClass = isLight ? 'bg-[#dee3e6]' : 'bg-[#8ea4b2]';
+        let bgClass = isLight ? 'bg-slate-300' : 'bg-slate-600';
         
         // highlight last move (soft yellow/green overlay)
         if (lastMove && (sq === lastMove.from || sq === lastMove.to)) {
-          bgClass = isLight ? 'bg-[#ccd985]' : 'bg-[#a3b858]';
+          bgClass = isLight ? 'bg-yellow-200/90' : 'bg-yellow-400/90';
         }
-        if (sq === selectedSquare) bgClass = 'bg-[#e2e65a]';
+        if (sq === selectedSquare) bgClass = 'bg-emerald-400/90 shadow-[inset_0_0_15px_rgba(0,0,0,0.2)]';
 
         cells.push(
           <div
             key={sq}
             onClick={() => handleSquareClick(sq, selectedSquare)}
-            className={`relative flex items-center justify-center cursor-pointer transition-colors duration-200 hover:brightness-110 ${bgClass}`}
-            style={{ width: '100%', paddingBottom: '100%' }}
+            className={`relative flex items-center justify-center cursor-pointer transition-colors duration-200 w-full h-full ${bgClass}`}
           >
             {/* Legal move indicators */}
             {legalMoves.includes(sq) && (
@@ -56,19 +55,19 @@ export default function ChessBoard({ game, flipped, selectedSquare, handleSquare
             {/* Piece SVG */}
             {piece && (
               <div 
-                className="absolute inset-[2%] w-[96%] h-[96%] transition-transform hover:scale-[1.12] z-[2] drop-shadow-[0_4px_6px_rgba(0,0,0,0.6)] flex items-center justify-center cursor-grab active:cursor-grabbing"
+                className="w-[85%] h-[85%] transition-transform hover:scale-[1.15] z-[2] drop-shadow-[0_6px_8px_rgba(0,0,0,0.7)] flex items-center justify-center cursor-grab active:cursor-grabbing piece-container"
                 dangerouslySetInnerHTML={{ __html: PIECE_SVG[piece.color + piece.type.toUpperCase()] }}
               />
             )}
 
             {/* Coordinates */}
             {col === 0 && (
-              <span className={`absolute top-1 left-1.5 text-[11px] font-bold pointer-events-none z-[3] ${isLight ? 'text-[#8ea4b2]' : 'text-[#dee3e6]'}`}>
+              <span className={`absolute top-0.5 left-1 text-[10px] sm:text-[11px] font-bold pointer-events-none z-[3] ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                 {flipped ? row + 1 : 8 - row}
               </span>
             )}
             {row === 7 && (
-              <span className={`absolute bottom-0.5 right-1.5 text-[11px] font-bold pointer-events-none z-[3] ${isLight ? 'text-[#8ea4b2]' : 'text-[#dee3e6]'}`}>
+              <span className={`absolute bottom-0 right-1 text-[10px] sm:text-[11px] font-bold pointer-events-none z-[3] ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                 {flipped ? 'gfedcbah'[col] : 'abcdefgh'[col]}
               </span>
             )}
@@ -106,4 +105,4 @@ export default function ChessBoard({ game, flipped, selectedSquare, handleSquare
       </svg>
     </div>
   );
-}
+});
