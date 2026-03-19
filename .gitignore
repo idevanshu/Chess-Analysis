@@ -18,10 +18,6 @@ dist/
 # Vite specific
 .vite/
 
-# Tailwind CSS
-postcss.config.js
-tailwind.config.js
-
 # Environment variables
 .env
 .env.local
