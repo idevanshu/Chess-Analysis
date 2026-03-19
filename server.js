@@ -460,6 +460,269 @@ app.get('/api/stats/performance', verifyToken, async (req, res) => {
   }
 });
 
+// Get comprehensive analytics from Python service
+app.get('/api/analytics/comprehensive', verifyToken, async (req, res) => {
+  try {
+    // Fetch all games for this user
+    const games = await Game.find({ userId: req.userId }).sort({ gameDate: -1 });
+    
+    console.log(`[Analytics] Found ${games.length} games for user ${req.userId}`);
+    
+    if (!games || games.length === 0) {
+      console.log('[Analytics] No games found, returning empty stats');
+      return res.json({
+        stats: {
+          totalGames: 0,
+          wins: 0,
+          losses: 0,
+          draws: 0,
+          winRate: 0,
+          averageAccuracy: 0,
+          averageElo: 1200,
+          totalMoves: 0,
+          currentWinStreak: 0,
+          bestWinStreak: 0
+        },
+        moves: {
+          blunders: 0,
+          tactical: 0,
+          strategic: 0,
+          bestMoves: 0,
+          totalMoves: 0,
+          tacticalAccuracy: 0
+        },
+        opponents: {},
+        colors: {
+          asWhite: { games: 0, wins: 0, losses: 0, draws: 0, winRate: 0, avgAccuracy: 0 },
+          asBlack: { games: 0, wins: 0, losses: 0, draws: 0, winRate: 0, avgAccuracy: 0 }
+        },
+        trends: { accuracyTrend: [], resultTrend: [], dates: [] },
+        openings: {}
+      });
+    }
+
+    // Process games data locally
+    const analytics = processAnalytics(games);
+    
+    console.log('[Analytics] Calculated stats:', {
+      totalGames: analytics.stats.totalGames,
+      wins: analytics.stats.wins,
+      losses: analytics.stats.losses,
+      winRate: analytics.stats.winRate,
+      avgAccuracy: analytics.stats.averageAccuracy
+    });
+    
+    res.json(analytics);
+  } catch (error) {
+    console.error('Analytics error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper function to process analytics locally
+function processAnalytics(games) {
+  console.log('[processAnalytics] Starting analysis of', games.length, 'games');
+  
+  // First game check
+  if (games.length > 0) {
+    console.log('[processAnalytics] First game structure:', {
+      result: games[0].result,
+      resultType: typeof games[0].result,
+      accuracy: games[0].analysis?.totalAccuracy,
+      movesCount: games[0].moves?.length,
+      opponent: games[0].opponent
+    });
+  }
+
+  const stats = {
+    totalGames: games.length,
+    wins: 0,
+    losses: 0,
+    draws: 0,
+    winRate: 0,
+    averageAccuracy: 0,
+    averageElo: 1200,
+    totalMoves: 0,
+    currentWinStreak: 0,
+    bestWinStreak: 0
+  };
+
+  let totalAccuracy = 0;
+  let accuracyCount = 0;
+  let currentStreak = 0;
+  let bestStreak = 0;
+
+  const moves = {
+    blunders: 0,
+    tactical: 0,
+    strategic: 0,
+    bestMoves: 0,
+    totalMoves: 0,
+    tacticalAccuracy: 0
+  };
+
+  const opponents = {};
+  const colorStats = {
+    asWhite: { games: 0, wins: 0, losses: 0, draws: 0, totalAccuracy: 0 },
+    asBlack: { games: 0, wins: 0, losses: 0, draws: 0, totalAccuracy: 0 }
+  };
+
+  const openings = {};
+  const accuracyTrend = [];
+
+  // Process each game
+  for (const game of games) {
+    const result = (game.result || 'draw').toLowerCase();
+    
+    // Map result to stats fields (win->wins, loss->losses, draw->draws)
+    if (result === 'win') {
+      stats.wins++;
+    } else if (result === 'loss') {
+      stats.losses++;
+    } else if (result === 'draw') {
+      stats.draws++;
+    }
+
+    // Win streak tracking
+    if (result === 'win') {
+      currentStreak++;
+      bestStreak = Math.max(bestStreak, currentStreak);
+    } else {
+      currentStreak = 0;
+    }
+
+    // Accuracy - use analysis.totalAccuracy (can be 0)
+    let gameAccuracy = 0;
+    if (game.analysis && game.analysis.totalAccuracy !== undefined) {
+      gameAccuracy = game.analysis.totalAccuracy;
+    } else if (game.accuracy !== undefined) {
+      // Fallback to top-level accuracy field
+      gameAccuracy = game.accuracy;
+    }
+    
+    if (gameAccuracy >= 0) {
+      totalAccuracy += gameAccuracy;
+      accuracyCount++;
+      accuracyTrend.push(gameAccuracy);
+    }
+
+    // Total moves
+    const gameMoves = game.moves || [];
+    stats.totalMoves += gameMoves.length;
+
+    // Move classification
+    for (const move of gameMoves) {
+      const moveType = (move.moveType || 'strategic').toLowerCase();
+      if (moveType === 'blunder') {
+        moves.blunders++;
+      } else if (moveType === 'tactical') {
+        moves.tactical++;
+      } else if (moveType === 'strategic') {
+        moves.strategic++;
+      } else if (moveType === 'best') {
+        moves.bestMoves++;
+      } else {
+        moves.strategic++;
+      }
+      moves.totalMoves++;
+    }
+
+    // Opponent stats
+    const opponentName = typeof game.opponent === 'string' ? game.opponent : (game.opponent?.name || 'Unknown');
+    if (!opponents[opponentName]) {
+      opponents[opponentName] = { wins: 0, losses: 0, draws: 0, games: 0, totalAccuracy: 0 };
+    }
+    if (result === 'win') {
+      opponents[opponentName].wins++;
+    } else if (result === 'loss') {
+      opponents[opponentName].losses++;
+    } else if (result === 'draw') {
+      opponents[opponentName].draws++;
+    }
+    opponents[opponentName].games++;
+    opponents[opponentName].totalAccuracy += gameAccuracy;
+
+    // Color stats
+    const color = game.playerColor === 'w' ? 'asWhite' : 'asBlack';
+    colorStats[color].games++;
+    if (result === 'win') {
+      colorStats[color].wins++;
+    } else if (result === 'loss') {
+      colorStats[color].losses++;
+    } else if (result === 'draw') {
+      colorStats[color].draws++;
+    }
+    colorStats[color].totalAccuracy += gameAccuracy;
+
+    // Opening stats
+    const opening = game.openingName || 'Unknown';
+    if (!openings[opening]) {
+      openings[opening] = { wins: 0, losses: 0, draws: 0, games: 0, totalAccuracy: 0 };
+    }
+    if (result === 'win') {
+      openings[opening].wins++;
+    } else if (result === 'loss') {
+      openings[opening].losses++;
+    } else if (result === 'draw') {
+      openings[opening].draws++;
+    }
+    openings[opening].games++;
+    openings[opening].totalAccuracy += gameAccuracy;
+  }
+
+  // Calculate final stats
+  stats.winRate = stats.totalGames > 0 ? Math.round((stats.wins / stats.totalGames) * 100) : 0;
+  stats.averageAccuracy = accuracyCount > 0 ? Math.round(totalAccuracy / accuracyCount) : 0;
+  stats.currentWinStreak = currentStreak;
+  stats.bestWinStreak = bestStreak;
+
+  // Calculate move accuracy
+  moves.tacticalAccuracy = moves.totalMoves > 0 ? Math.round((moves.tactical / moves.totalMoves) * 100) : 0;
+
+  // Calculate opponent win rates
+  for (const opponent in opponents) {
+    const opp = opponents[opponent];
+    opp.winRate = opp.games > 0 ? Math.round((opp.wins / opp.games) * 100) : 0;
+    opp.avgAccuracy = opp.games > 0 ? Math.round(opp.totalAccuracy / opp.games) : 0;
+    delete opp.totalAccuracy;
+  }
+
+  // Calculate color win rates
+  for (const color in colorStats) {
+    const cols = colorStats[color];
+    cols.winRate = cols.games > 0 ? Math.round((cols.wins / cols.games) * 100) : 0;
+    cols.avgAccuracy = cols.games > 0 ? Math.round(cols.totalAccuracy / cols.games) : 0;
+    delete cols.totalAccuracy;
+  }
+
+  // Calculate opening win rates
+  for (const opening in openings) {
+    const op = openings[opening];
+    op.winRate = op.games > 0 ? Math.round((op.wins / op.games) * 100) : 0;
+    op.avgAccuracy = op.games > 0 ? Math.round(op.totalAccuracy / op.games) : 0;
+    delete op.totalAccuracy;
+  }
+
+  console.log('[processAnalytics] Final stats:', {
+    totalGames: stats.totalGames,
+    wins: stats.wins,
+    losses: stats.losses,
+    draws: stats.draws,
+    winRate: stats.winRate,
+    avgAccuracy: stats.averageAccuracy,
+    totalMoves: stats.totalMoves
+  });
+
+  return {
+    stats,
+    moves,
+    opponents,
+    colors: colorStats,
+    trends: { accuracyTrend: accuracyTrend.slice(-10), dates: games.slice(-10).map(g => g.gameDate) },
+    openings
+  };
+}
+
 // Helper function to calculate accuracy
 function calculateAccuracy(moves) {
   if (moves.length === 0) return 0;

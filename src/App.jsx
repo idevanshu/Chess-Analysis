@@ -6,7 +6,7 @@ import { useMultiplayer } from './useMultiplayer';
 import { PLAYERS, PLAYER_ORDER } from './players';
 import { useAuth } from './context/AuthContext';
 import AuthPage from './AuthPage';
-import Dashboard from './Dashboard';
+import Dashboard from './DashboardNew';
 import GameMode from './GameMode';
 import { ChevronDown, Settings, MessageSquare, Plus, BarChart3, LogOut, Copy, Check } from 'lucide-react';
 
