@@ -7,38 +7,41 @@ export function useStockfish() {
   const timeoutRef = useRef(null);
 
   useEffect(() => {
-    const worker = new Worker('/js/stockfish-worker.js');
+    // Stockfish 18 WASM runs directly as a Web Worker — no wrapper needed
+    const worker = new Worker('/js/stockfish-18-lite-single.js');
 
     worker.onmessage = (e) => {
-      const msg = e.data;
+      const line = typeof e.data === 'string' ? e.data : '';
 
-      if (msg.type === 'ready') {
+      // Engine is ready once UCI handshake completes
+      if (line === 'uciok') {
+        worker.postMessage('isready');
+        return;
+      }
+
+      if (line === 'readyok' && !isReady) {
         setIsReady(true);
         return;
       }
 
-      if (msg.type === 'output' && typeof msg.data === 'string') {
-        const line = msg.data;
+      if (line.startsWith('bestmove')) {
+        // Clear the safety timeout
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
 
-        if (line.startsWith('bestmove')) {
-          // Clear the safety timeout
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-            timeoutRef.current = null;
-          }
-
-          const parts = line.split(' ');
-          const bestMove = parts[1];
-          if (bestMove && bestMove !== '(none)' && callbackRef.current) {
-            const cb = callbackRef.current;
-            callbackRef.current = null;
-            cb(bestMove);
-          } else if (callbackRef.current) {
-            // Engine returned no move — resolve null so fallback kicks in
-            const cb = callbackRef.current;
-            callbackRef.current = null;
-            cb(null);
-          }
+        const parts = line.split(' ');
+        const bestMove = parts[1];
+        if (bestMove && bestMove !== '(none)' && callbackRef.current) {
+          const cb = callbackRef.current;
+          callbackRef.current = null;
+          cb(bestMove);
+        } else if (callbackRef.current) {
+          // Engine returned no move — resolve null so fallback kicks in
+          const cb = callbackRef.current;
+          callbackRef.current = null;
+          cb(null);
         }
       }
     };
@@ -49,8 +52,12 @@ export function useStockfish() {
 
     workerRef.current = worker;
 
+    // Start UCI handshake
+    worker.postMessage('uci');
+
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      worker.postMessage('quit');
       worker.terminate();
       workerRef.current = null;
       setIsReady(false);
@@ -91,7 +98,7 @@ export function useStockfish() {
       worker.postMessage(`setoption name UCI_Elo value ${clampedElo}`);
 
       // Also set Skill Level for additional difficulty control (0-20)
-      // Map ELO range to skill: 1350->1, 2850->20
+      // Map ELO range to skill: 1320->0, 3190->20
       const skill = Math.max(0, Math.min(20, Math.round(((clampedElo - 1320) / (3190 - 1320)) * 20)));
       worker.postMessage(`setoption name Skill Level value ${skill}`);
 

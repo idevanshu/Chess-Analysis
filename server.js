@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { Chess } from 'chess.js';
@@ -34,8 +34,8 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/chess-leg
 app.use(cors());
 app.use(express.json());
 
-const apiKey = process.env.GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(apiKey);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
 const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // ===== OPENMETRICS / PROMETHEUS SETUP =====
@@ -100,9 +100,9 @@ const authAttemptsTotal = new promClient.Counter({
   registers: [metricsRegister],
 });
 
-const geminiRequestDuration = new promClient.Histogram({
-  name: 'gemini_request_duration_seconds',
-  help: 'Duration of Gemini API calls',
+const llmRequestDuration = new promClient.Histogram({
+  name: 'llm_request_duration_seconds',
+  help: 'Duration of OpenAI LLM calls',
   buckets: [0.5, 1, 2, 5, 10, 20],
   registers: [metricsRegister],
 });
@@ -146,8 +146,9 @@ app.get('/health', async (req, res) => {
         status: 'up',
         connections: io.engine?.clientsCount || 0,
       },
-      gemini: {
-        status: apiKey ? 'configured' : 'missing',
+      openai: {
+        status: process.env.OPENAI_API_KEY ? 'configured' : 'missing_api_key',
+        model: OPENAI_MODEL,
       },
     },
     memory: {
@@ -901,72 +902,67 @@ function calculateAccuracy(moves) {
   return Math.round(totalAccuracy / accuracies.length);
 }
 
-// ===== CHAT WITH GEMINI =====
+// ===== CHAT WITH OPENAI (GPT-3.5-turbo) =====
 
-// Chat stream endpoint
+// Chat stream endpoint — powered by OpenAI ChatGPT
 app.post('/api/chat', async (req, res) => {
-  const geminiTimer = geminiRequestDuration.startTimer();
-  if (!apiKey || apiKey === 'your_gemini_api_key_here') {
-    geminiTimer();
-    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured in .env' });
-  }
-
+  const llmTimer = llmRequestDuration.startTimer();
   const { messages, systemInstruction } = req.body;
 
   try {
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      systemInstruction: systemInstruction,
-    });
+    // Build OpenAI message array from the client's Gemini-style format
+    const openaiMessages = [];
 
-    let history = messages.slice(0, -1).map(m => ({
-      role: m.role,
-      parts: [{ text: m.parts[0].text }],
-    }));
-
-    // Gemini requires the first message to be from the 'user'
-    while (history.length > 0 && history[0].role === 'model') {
-      history.shift();
+    // System prompt
+    if (systemInstruction) {
+      openaiMessages.push({ role: 'system', content: systemInstruction });
     }
 
-    // Group consecutive messages by role to prevent API crashes
-    let formattedHistory = [];
-    for (const m of history) {
-      if (formattedHistory.length > 0 && formattedHistory[formattedHistory.length - 1].role === m.role) {
-        formattedHistory[formattedHistory.length - 1].parts[0].text += '\n\n' + m.parts[0].text;
-      } else {
-        formattedHistory.push(m);
-      }
+    // Chat history + latest message
+    for (const m of messages) {
+      openaiMessages.push({
+        role: m.role === 'model' ? 'assistant' : 'user',
+        content: m.parts[0].text,
+      });
     }
 
-    const chat = model.startChat({
-      history: formattedHistory,
-      generationConfig: {
-        temperature: 1.0,
-        maxOutputTokens: 512,
-      }
+    // Call OpenAI streaming API
+    const stream = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: openaiMessages,
+      stream: true,
+      temperature: 1.0,
+      max_tokens: 256,
     });
-
-    const result = await chat.sendMessageStream(messages[messages.length - 1].parts[0].text);
 
     // Setup SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    for await (const chunk of result.stream) {
-      const chunkText = chunk.text();
-      res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+    // Stream OpenAI response as SSE to the client
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) {
+        res.write(`data: ${JSON.stringify({ text: content })}\n\n`);
+      }
+      if (chunk.choices[0]?.finish_reason) {
+        res.write('data: [DONE]\n\n');
+      }
     }
-    
+
     res.write('data: [DONE]\n\n');
     res.end();
-    geminiTimer();
+    llmTimer();
 
   } catch (error) {
-    geminiTimer();
-    console.error('Gemini API Error:', error);
-    res.status(500).json({ error: error.message });
+    llmTimer();
+    console.error('OpenAI API Error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.end();
+    }
   }
 });
 

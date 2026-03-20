@@ -38,8 +38,8 @@ export function useGemini(currentPlayer) {
     setMessages((prev) => [...prev, { role: isUser ? 'user' : 'model', parts: [{ text }] }]);
   };
 
-  const saveApiKey = (key) => {
-    localStorage.setItem('gemini_api_key', key);
+  const saveApiKey = () => {
+    // API key is configured on the backend via OPENAI_API_KEY env var
     setIsConnected(true);
   };
 

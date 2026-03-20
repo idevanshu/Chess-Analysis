@@ -57,43 +57,38 @@ class ChessApp {
 
   initStockfish() {
     try {
-      this.stockfishWorker = new Worker('js/stockfish-worker.js');
-      this.stockfishWorker.onmessage = (e) => this.handleStockfishMessage(e.data);
+      // Stockfish 18 WASM runs directly as a Web Worker — no wrapper needed
+      this.stockfishWorker = new Worker('/js/stockfish-18-lite-single.js');
+      this.stockfishReady = false;
+      this.stockfishWorker.onmessage = (e) => {
+        const line = typeof e.data === 'string' ? e.data : '';
+        if (line === 'uciok') {
+          this.stockfishWorker.postMessage('isready');
+          return;
+        }
+        if (line === 'readyok' && !this.stockfishReady) {
+          this.stockfishReady = true;
+          return;
+        }
+        this.handleStockfishMessage(line);
+      };
       this.stockfishWorker.onerror = (e) => {
         console.warn('Stockfish worker error:', e);
-        this.loadStockfishFallback();
       };
+      // Start UCI handshake
+      this.stockfishWorker.postMessage('uci');
     } catch(e) {
-      console.warn('Worker failed, trying fallback');
-      this.loadStockfishFallback();
+      console.warn('Stockfish worker failed:', e);
     }
-  }
-
-  loadStockfishFallback() {
-    // Inline Stockfish via script tag
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/stockfish@16.0.0/src/stockfish.js';
-    script.onload = () => {
-      this.stockfishDirect = Stockfish();
-      this.stockfishDirect.addMessageListener((msg) => {
-        this.handleStockfishMessage({ type: 'output', data: msg });
-      });
-      this.stockfishDirect.postMessage('uci');
-      this.stockfishDirect.postMessage('isready');
-    };
-    document.head.appendChild(script);
   }
 
   sendToStockfish(cmd) {
     if (this.stockfishWorker) {
       this.stockfishWorker.postMessage(cmd);
-    } else if (this.stockfishDirect) {
-      this.stockfishDirect.postMessage(cmd);
     }
   }
 
-  handleStockfishMessage(msg) {
-    const data = (msg && msg.data) ? msg.data : msg;
+  handleStockfishMessage(data) {
     if (typeof data !== 'string') return;
 
     if (data.startsWith('bestmove')) {
