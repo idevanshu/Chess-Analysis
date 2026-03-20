@@ -184,6 +184,44 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     return false;
   };
 
+  // Undo last move (in AI mode: undo both AI + player move)
+  const undoMove = () => {
+    if (gameOver || moveHistory.length === 0 || isAiThinking) return false;
+
+    const undoOne = () => {
+      const undone = game.undo();
+      if (!undone) return null;
+      // Remove from move history
+      setMoveHistory(prev => prev.slice(0, -1));
+      // Remove captured piece if any
+      if (undone.captured) {
+        setCaptured(prev => {
+          const arr = [...prev[undone.color]];
+          const idx = arr.lastIndexOf(undone.captured);
+          if (idx !== -1) arr.splice(idx, 1);
+          return { ...prev, [undone.color]: arr };
+        });
+      }
+      return undone;
+    };
+
+    if (gameMode === 'ai') {
+      // Undo AI move + player move (go back one full turn)
+      if (moveHistory.length >= 2) {
+        undoOne(); // undo AI move
+        undoOne(); // undo player move
+      } else if (moveHistory.length === 1) {
+        undoOne();
+      }
+    } else {
+      undoOne();
+    }
+
+    setFen(game.fen());
+    setHintArrow(null);
+    return true;
+  };
+
   const resetGame = () => {
     const newGame = new Chess();
     setGame(newGame);
@@ -221,6 +259,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
 
   return {
     game, fen, moveHistory, gameOver, gameResult, captured, isAiThinking,
-    playerColor, setPlayerColor, handleSquareClick, resetGame, hintArrow, resign, forceGameOver, makeExternalMove
+    playerColor, setPlayerColor, handleSquareClick, resetGame, undoMove, hintArrow, resign, forceGameOver, makeExternalMove
   };
 }

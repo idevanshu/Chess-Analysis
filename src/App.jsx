@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ChessBoard from './ChessBoard';
 import { useChessLogic } from './useChessLogic';
+import { useChessTimer, formatTime } from './useChessTimer';
 import { useGemini } from './useGemini';
 import { useMultiplayer } from './useMultiplayer';
 import { PLAYERS, PLAYER_ORDER } from './players';
@@ -8,7 +9,149 @@ import { useAuth } from './context/AuthContext';
 import AuthPage from './AuthPage';
 import Dashboard from './DashboardNew';
 import GameMode from './GameMode';
-import { ChevronDown, Settings, MessageSquare, Plus, BarChart3, LogOut, Copy, Check } from 'lucide-react';
+import { ChevronDown, Settings, MessageSquare, Plus, BarChart3, LogOut, Copy, Check, Undo2, Clock } from 'lucide-react';
+
+// Classic chess clock panel — sits to the left of the board
+function ChessClock({ whiteTime, blackTime, activeTurn, gameStarted, gameOver, playerColor, timeControl }) {
+  const isFlipped = playerColor === 'b';
+  // Top clock = opponent, Bottom clock = you
+  const topColor = isFlipped ? 'w' : 'b';
+  const bottomColor = isFlipped ? 'b' : 'w';
+  const topTime = topColor === 'w' ? whiteTime : blackTime;
+  const bottomTime = bottomColor === 'w' ? whiteTime : blackTime;
+  const topActive = gameStarted && !gameOver && activeTurn === topColor;
+  const bottomActive = gameStarted && !gameOver && activeTurn === bottomColor;
+
+  return (
+    <div className="hidden md:flex flex-col w-[130px] lg:w-[150px] shrink-0 mr-3 lg:mr-4 select-none">
+      {/* Clock housing */}
+      <div className="flex-1 flex flex-col rounded-2xl overflow-hidden bg-gradient-to-b from-[#1a1a2e] to-[#16162a] border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.05)]">
+        {/* Opponent clock (top) */}
+        <ClockFace
+          time={topTime}
+          isActive={topActive}
+          label={topColor === 'w' ? 'White' : 'Black'}
+          piece={topColor === 'w' ? '♔' : '♚'}
+          pieceColor={topColor === 'w' ? '#e2e8f0' : '#94a3b8'}
+        />
+
+        {/* Divider with format badge */}
+        <div className="relative px-3">
+          <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+          {timeControl && (
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-2 py-0.5 bg-[#1a1a2e] text-[9px] font-bold uppercase tracking-wider text-white/30 whitespace-nowrap">
+              {timeControl.format}
+            </div>
+          )}
+        </div>
+
+        {/* Player clock (bottom) */}
+        <ClockFace
+          time={bottomTime}
+          isActive={bottomActive}
+          label={bottomColor === 'w' ? 'White' : 'Black'}
+          piece={bottomColor === 'w' ? '♔' : '♚'}
+          pieceColor={bottomColor === 'w' ? '#e2e8f0' : '#94a3b8'}
+        />
+      </div>
+
+      {/* Label */}
+      <div className="flex items-center justify-center gap-1.5 mt-2">
+        <Clock className="w-3 h-3 text-white/25" />
+        <span className="text-[10px] text-white/25 font-medium">{timeControl?.label}</span>
+      </div>
+    </div>
+  );
+}
+
+// Individual clock face
+function ClockFace({ time, isActive, label, piece, pieceColor }) {
+  const isLow = time < 30;
+  const isCritical = time < 10;
+
+  return (
+    <div className={`flex-1 flex flex-col items-center justify-center py-4 px-2 transition-all duration-300 relative ${
+      isActive ? 'bg-white/[0.04]' : ''
+    }`}>
+      {/* Active glow */}
+      {isActive && (
+        <div className={`absolute inset-0 pointer-events-none ${
+          isCritical ? 'bg-red-500/[0.06]' : isLow ? 'bg-amber-500/[0.04]' : 'bg-emerald-500/[0.04]'
+        }`} />
+      )}
+
+      {/* Active dot indicator */}
+      <div className={`w-2 h-2 rounded-full mb-2 transition-all duration-300 ${
+        isActive
+          ? isCritical
+            ? 'bg-red-500 shadow-[0_0_10px_#ef4444] animate-pulse'
+            : isLow
+              ? 'bg-amber-500 shadow-[0_0_8px_#f59e0b]'
+              : 'bg-emerald-500 shadow-[0_0_8px_#10b981]'
+          : 'bg-white/10'
+      }`} />
+
+      {/* Piece icon */}
+      <span className="text-2xl mb-1 drop-shadow-lg" style={{ color: pieceColor }}>
+        {piece}
+      </span>
+
+      {/* Player label */}
+      <span className={`text-[10px] uppercase tracking-widest font-bold mb-2 transition-colors ${
+        isActive ? 'text-white/60' : 'text-white/25'
+      }`}>
+        {label}
+      </span>
+
+      {/* Time display */}
+      <div className={`font-mono font-black tabular-nums tracking-tight transition-all duration-300 ${
+        isCritical && isActive
+          ? 'text-3xl lg:text-4xl text-red-400 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)] animate-pulse'
+          : isLow && isActive
+            ? 'text-3xl lg:text-4xl text-amber-400 drop-shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+            : isActive
+              ? 'text-3xl lg:text-4xl text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.15)]'
+              : 'text-3xl lg:text-4xl text-white/30'
+      }`}>
+        {formatTime(time)}
+      </div>
+    </div>
+  );
+}
+
+// Compact clock for mobile screens
+function MobileClockFace({ time, isActive, label, piece }) {
+  const isLow = time < 30;
+  const isCritical = time < 10;
+  return (
+    <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${
+      isActive
+        ? isCritical
+          ? 'bg-red-500/15 border border-red-500/30'
+          : isLow
+            ? 'bg-amber-500/10 border border-amber-500/25'
+            : 'bg-white/10 border border-white/15'
+        : 'bg-white/5 border border-white/5'
+    }`}>
+      <span className="text-xl">{piece}</span>
+      <div className="flex flex-col">
+        <span className="text-[9px] uppercase tracking-wider text-white/40 font-bold leading-none">{label}</span>
+        <span className={`font-mono text-xl font-black tabular-nums leading-tight ${
+          isActive
+            ? isCritical ? 'text-red-400 animate-pulse' : isLow ? 'text-amber-400' : 'text-white'
+            : 'text-white/35'
+        }`}>
+          {formatTime(time)}
+        </span>
+      </div>
+      {isActive && (
+        <div className={`w-1.5 h-1.5 rounded-full ml-auto ${
+          isCritical ? 'bg-red-500 animate-pulse' : isLow ? 'bg-amber-500' : 'bg-emerald-500'
+        }`} />
+      )}
+    </div>
+  );
+}
 
 function GameView() {
   console.log('GameView rendering...');
@@ -26,7 +169,8 @@ function GameView() {
   const [chatInput, setChatInput] = useState('');
   const [selectedSquare, setSelectedSquare] = useState(null);
   const [autoJoinRoomCode, setAutoJoinRoomCode] = useState(null);
-  
+  const [timeControl, setTimeControl] = useState(null); // { initialTime, increment, label, format }
+
   const currentPlayer = PLAYERS[activePlayerId];
   
   // Check for auto-join URL parameter on mount
@@ -39,8 +183,25 @@ function GameView() {
   }, []);
   const {
     game, fen, moveHistory, gameOver, gameResult, captured, isAiThinking,
-    playerColor, setPlayerColor, handleSquareClick, resetGame, hintArrow, resign, forceGameOver, makeExternalMove
+    playerColor, setPlayerColor, handleSquareClick, resetGame, undoMove, hintArrow, resign, forceGameOver, makeExternalMove
   } = useChessLogic(currentPlayer, hintsEnabled, gameMode);
+
+  // Chess timer
+  const gameStarted = moveHistory.length > 0;
+  const { whiteTime, blackTime, isTimedOut, timedOutColor, resetTimers } = useChessTimer(
+    timeControl,
+    game.turn(),
+    gameStarted,
+    gameOver
+  );
+
+  // Handle timeout — end game when clock runs out
+  useEffect(() => {
+    if (isTimedOut && timedOutColor && !gameOver) {
+      const winner = timedOutColor === 'w' ? 'Black' : 'White';
+      forceGameOver(`${winner} Wins on Time!`);
+    }
+  }, [isTimedOut, timedOutColor, gameOver, forceGameOver]);
 
   // Get Gemini commentary only for AI mode
   const {
@@ -234,13 +395,15 @@ function GameView() {
     }
   }, [gameOver, gameResult, token]);
 
-  const handlePlayAI = () => {
+  const handlePlayAI = (tc) => {
+    setTimeControl(tc || null);
     setGameMode('ai');
     setShowGameMode(false);
     setMultiplayerRoomCode(null);
   };
 
-  const handleLocalStart = () => {
+  const handleLocalStart = (tc) => {
+    setTimeControl(tc || null);
     setGameMode('local');
     setShowGameMode(false);
     setMultiplayerRoomCode(null);
@@ -258,6 +421,11 @@ function GameView() {
       setPlayerColor(data?.guestColor === 'w' || data?.guestColor === 'white' ? 'w' : 'b');
     }
     setShowGameMode(false);
+  };
+
+  const handleNewGame = () => {
+    resetGame();
+    resetTimers();
   };
 
   const copyRoomCode = async () => {
@@ -340,7 +508,7 @@ function GameView() {
     setActivePlayerId(id);
     setShowPlayerDropdown(false);
     if (gameMode === 'ai') {
-      resetGame();
+      handleNewGame();
     }
   };
 
@@ -432,6 +600,12 @@ function GameView() {
 
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex items-center gap-2 text-sm">
+            {timeControl && (
+              <>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-white/50">{timeControl.format?.toUpperCase()}</span>
+                <span className="text-white/20">·</span>
+              </>
+            )}
             <span className="font-mono text-white/40 text-xs">Move {Math.floor(moveHistory.length / 2) || 0}</span>
             <span className="text-white/20">·</span>
             {gameMode === 'ai' ? (
@@ -480,51 +654,104 @@ function GameView() {
           <div className="flex flex-wrap items-center justify-center gap-2 mb-3 shrink-0">
             {gameMode === 'ai' ? (
               <>
-                <button onClick={resetGame} className="game-btn primary"><Plus className="w-3 h-3"/> New Game</button>
+                <button onClick={handleNewGame} className="game-btn primary"><Plus className="w-3 h-3"/> New Game</button>
+                <button
+                  onClick={undoMove}
+                  disabled={moveHistory.length === 0 || isAiThinking || gameOver}
+                  className="game-btn"
+                  title="Undo last move"
+                >
+                  <Undo2 className="w-3 h-3"/> Back
+                </button>
                 <button onClick={() => setHintsEnabled(!hintsEnabled)} className={`game-btn ${hintsEnabled ? 'active' : ''}`}>Hints</button>
                 <button onClick={() => setCommentaryEnabled(!commentaryEnabled)} className={`game-btn ${commentaryEnabled ? 'active' : ''}`}>Comm</button>
                 <button onClick={resign} className="game-btn danger">Resign</button>
-                {gameMode === 'ai' && (
-                  <div className="flex gap-1.5 ml-2">
-                    <button
-                      onClick={() => { setPlayerColor('w'); resetGame(); }}
-                      className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${playerColor === 'w' ? 'bg-white text-gray-900 shadow' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}
-                    >White</button>
-                    <button
-                      onClick={() => { setPlayerColor('b'); resetGame(); }}
-                      className={`px-2.5 py-1 rounded text-xs font-bold transition-all border border-white/20 ${playerColor === 'b' ? 'bg-gray-800 text-white shadow' : 'bg-white/5 text-white/60 hover:bg-white/20'}`}
-                    >Black</button>
-                  </div>
-                )}
+                <div className="flex gap-1.5 ml-2">
+                  <button
+                    onClick={() => { setPlayerColor('w'); handleNewGame(); }}
+                    className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${playerColor === 'w' ? 'bg-white text-gray-900 shadow' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}
+                  >White</button>
+                  <button
+                    onClick={() => { setPlayerColor('b'); handleNewGame(); }}
+                    className={`px-2.5 py-1 rounded text-xs font-bold transition-all border border-white/20 ${playerColor === 'b' ? 'bg-gray-800 text-white shadow' : 'bg-white/5 text-white/60 hover:bg-white/20'}`}
+                  >Black</button>
+                </div>
+              </>
+            ) : gameMode === 'local' ? (
+              <>
+                <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }} className="game-btn primary"><Plus className="w-3 h-3"/> New Game</button>
+                <button
+                  onClick={undoMove}
+                  disabled={moveHistory.length === 0 || gameOver}
+                  className="game-btn"
+                  title="Undo last move"
+                >
+                  <Undo2 className="w-3 h-3"/> Back
+                </button>
+                <button onClick={resign} className="game-btn danger">Resign</button>
               </>
             ) : (
               <>
-                <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); resetGame(); }} className="game-btn primary"><Plus className="w-3 h-3"/> New Game</button>
+                <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }} className="game-btn primary"><Plus className="w-3 h-3"/> New Game</button>
                 <button onClick={() => { resign(); multiplayerResign(); }} className="game-btn danger">Resign</button>
               </>
             )}
           </div>
 
-          {/* Board container — sizes to fill available space */}
-          <div className="relative w-full max-w-[min(calc(100vh-10rem),100%)] mx-auto p-[6px]">
-            <ChessBoard
-              game={game}
-              flipped={playerColor === 'b'}
-              selectedSquare={selectedSquare}
-              handleSquareClick={onSquareClick}
-              lastMove={lastMoveObj}
-              hintArrow={hintArrow}
-            />
-
-            {gameOver && (
-              <div className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center z-50 rounded animate-in fade-in duration-300">
-                <div className="text-5xl mb-3">♟</div>
-                <div className="font-display text-3xl font-bold text-[var(--player-color)] drop-shadow-[0_0_20px_var(--player-color)] mb-2">Game Over</div>
-                <div className="text-sm text-white/70 text-center max-w-[220px] mb-6">{gameResult}</div>
-                <button onClick={resetGame} className="game-btn primary px-8 py-2.5 text-sm">Play Again</button>
-              </div>
+          {/* Board + Clock row */}
+          <div className="flex items-stretch justify-center w-full max-w-[min(calc(100vh-10rem),100%)] mx-auto">
+            {/* Classic chess clock — left of board */}
+            {timeControl && (
+              <ChessClock
+                whiteTime={whiteTime}
+                blackTime={blackTime}
+                activeTurn={game.turn()}
+                gameStarted={gameStarted}
+                gameOver={gameOver}
+                playerColor={playerColor}
+                timeControl={timeControl}
+              />
             )}
+
+            {/* Board */}
+            <div className="relative flex-1 p-[6px]">
+              <ChessBoard
+                game={game}
+                flipped={playerColor === 'b'}
+                selectedSquare={selectedSquare}
+                handleSquareClick={onSquareClick}
+                lastMove={lastMoveObj}
+                hintArrow={hintArrow}
+              />
+
+              {gameOver && (
+                <div className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center z-50 rounded animate-in fade-in duration-300">
+                  <div className="text-5xl mb-3">♟</div>
+                  <div className="font-display text-3xl font-bold text-[var(--player-color)] drop-shadow-[0_0_20px_var(--player-color)] mb-2">Game Over</div>
+                  <div className="text-sm text-white/70 text-center max-w-[220px] mb-6">{gameResult}</div>
+                  <button onClick={handleNewGame} className="game-btn primary px-8 py-2.5 text-sm">Play Again</button>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Mobile timers — shown below board on small screens when clock is hidden */}
+          {timeControl && (
+            <div className="flex md:hidden gap-2 mt-2 w-full max-w-[min(calc(100vh-10rem),100%)] mx-auto">
+              <MobileClockFace
+                time={playerColor === 'b' ? blackTime : whiteTime}
+                isActive={gameStarted && !gameOver && game.turn() === (playerColor === 'b' ? 'b' : 'w')}
+                label={playerColor === 'b' ? 'Black' : 'White'}
+                piece={playerColor === 'b' ? '♚' : '♔'}
+              />
+              <MobileClockFace
+                time={playerColor === 'b' ? whiteTime : blackTime}
+                isActive={gameStarted && !gameOver && game.turn() === (playerColor === 'b' ? 'w' : 'b')}
+                label={playerColor === 'b' ? 'White' : 'Black'}
+                piece={playerColor === 'b' ? '♔' : '♚'}
+              />
+            </div>
+          )}
         </div>
 
         {/* ===== RIGHT: SIDE PANEL ===== */}
