@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Chess } from 'chess.js';
 import { useStockfish } from './useStockfish';
 
@@ -12,7 +12,51 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [playerColor, setPlayerColor] = useState('w');
   const [hintArrow, setHintArrow] = useState(null);
+  const [viewingMoveIndex, setViewingMoveIndex] = useState(null); // null = live, -1 = start, 0+ = after that move
+  const [pendingPromotion, setPendingPromotion] = useState(null); // { from, to }
+  const [premove, setPremove] = useState(null); // { from, to }
   const { isReady: stockfishReady, getBestMove } = useStockfish();
+
+  // --- Move history navigation (analysis mode) ---
+  const isViewingHistory = viewingMoveIndex !== null;
+
+  const viewingGame = useMemo(() => {
+    if (viewingMoveIndex === null) return null;
+    try {
+      const viewFen = viewingMoveIndex === -1
+        ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+        : moveHistory[viewingMoveIndex]?.after;
+      if (!viewFen) return null;
+      return new Chess(viewFen);
+    } catch { return null; }
+  }, [viewingMoveIndex, moveHistory]);
+
+  const goToMove = (index) => {
+    if (index >= moveHistory.length - 1) setViewingMoveIndex(null);
+    else if (index < -1) setViewingMoveIndex(-1);
+    else setViewingMoveIndex(index);
+  };
+
+  const goBack = () => {
+    if (moveHistory.length === 0) return;
+    setViewingMoveIndex(prev => {
+      if (prev === null) return moveHistory.length - 2;
+      return prev > -1 ? prev - 1 : prev;
+    });
+  };
+
+  const goForward = () => {
+    setViewingMoveIndex(prev => {
+      if (prev === null) return null;
+      return prev >= moveHistory.length - 2 ? null : prev + 1;
+    });
+  };
+
+  const goToStart = () => {
+    if (moveHistory.length > 0) setViewingMoveIndex(-1);
+  };
+
+  const goToEnd = () => setViewingMoveIndex(null);
 
   // Convert Stockfish UCI move (e.g. "e2e4") to chess.js move object
   const applyUciMove = (uciMove) => {
@@ -119,27 +163,88 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     }
   }, [playerColor, stockfishReady]);
 
+  // Execute premove when it becomes the player's turn
+  useEffect(() => {
+    if (!premove || gameOver || gameMode === 'local') return;
+    if (game.turn() !== playerColor) return;
+
+    try {
+      const moves = game.moves({ square: premove.from, verbose: true });
+      const targetMove = moves.find(m => m.to === premove.to);
+      if (targetMove) {
+        const moveOptions = { from: premove.from, to: premove.to };
+        if (targetMove.promotion) moveOptions.promotion = 'q'; // premoves auto-queen
+        const move = game.move(moveOptions);
+        if (move) {
+          setPremove(null);
+          onMoveMade(move);
+          return;
+        }
+      }
+    } catch (e) {
+      // premove was invalid
+    }
+    setPremove(null);
+  }, [fen]);
+
   const handleSquareClick = (square, selectedSquare) => {
     const isLocal = gameMode === 'local';
     const currentTurnColor = game.turn();
-    if (gameOver || isAiThinking) return null;
-    if (!isLocal && currentTurnColor !== playerColor) return null;
+    if (gameOver) return null;
+
+    // Cancel pending promotion on any board click
+    if (pendingPromotion) {
+      setPendingPromotion(null);
+      return null;
+    }
+
+    const isPlayerTurn = isLocal || currentTurnColor === playerColor;
+
+    // --- Premove mode (not player's turn, non-local) ---
+    if (!isPlayerTurn) {
+      if (selectedSquare) {
+        // If clicking own piece, re-select it
+        const clickedPiece = game.get(square);
+        if (clickedPiece && clickedPiece.color === playerColor) {
+          setPremove(null);
+          return square;
+        }
+        // Set premove destination
+        setPremove({ from: selectedSquare, to: square });
+        return null;
+      }
+      // Select own piece for premove
+      const piece = game.get(square);
+      if (piece && piece.color === playerColor) {
+        setPremove(null);
+        return square;
+      }
+      setPremove(null);
+      return null;
+    }
+
+    // --- Normal mode (player's turn) ---
+    if (isAiThinking) return null;
+    setPremove(null);
 
     if (selectedSquare) {
       try {
         const moves = game.moves({ square: selectedSquare, verbose: true });
-        const isPromotion = moves.some(m => m.to === square && m.promotion);
-        
-        const moveOptions = { from: selectedSquare, to: square };
-        if (isPromotion) moveOptions.promotion = 'q';
+        const promotionMove = moves.find(m => m.to === square && m.promotion);
 
-        const move = game.move(moveOptions);
+        if (promotionMove) {
+          // Show promotion chooser instead of auto-queening
+          setPendingPromotion({ from: selectedSquare, to: square });
+          return null;
+        }
+
+        const move = game.move({ from: selectedSquare, to: square });
         if (move) {
           onMoveMade(move);
-          return null; // deselect
+          return null;
         }
       } catch (e) {
-        // invalid move, check if it's our own piece to select
+        // invalid move, fall through to piece selection
       }
     }
 
@@ -151,7 +256,25 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     return null;
   };
 
+  const completePromotion = (promotionPiece) => {
+    if (!pendingPromotion) return;
+    const { from, to } = pendingPromotion;
+    try {
+      const move = game.move({ from, to, promotion: promotionPiece });
+      if (move) onMoveMade(move);
+    } catch (e) {
+      console.error('Promotion error:', e);
+    }
+    setPendingPromotion(null);
+  };
+
+  const cancelPromotion = () => {
+    setPendingPromotion(null);
+  };
+
   const onMoveMade = (move) => {
+    setViewingMoveIndex(null);
+    setPendingPromotion(null);
     setFen(game.fen());
     setMoveHistory((prev) => [...prev, move]);
     
@@ -172,12 +295,28 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
 
   const checkGameOver = () => {
     if (game.isCheckmate()) {
-      const winner = game.turn() === 'w' ? 'Black' : 'White';
-      setGameResult(`Checkmate! ${winner} Wins!`);
+      const winnerColor = game.turn() === 'w' ? 'b' : 'w';
+      setGameResult({ type: 'checkmate', winnerColor });
+      setGameOver(true);
+      return true;
+    } else if (game.isStalemate()) {
+      setGameResult({ type: 'stalemate' });
+      setGameOver(true);
+      return true;
+    } else if (game.isThreefoldRepetition()) {
+      setGameResult({ type: 'repetition' });
+      setGameOver(true);
+      return true;
+    } else if (game.isInsufficientMaterial()) {
+      setGameResult({ type: 'insufficient' });
+      setGameOver(true);
+      return true;
+    } else if (game.isDrawByFiftyMoves()) {
+      setGameResult({ type: 'fifty-move' });
       setGameOver(true);
       return true;
     } else if (game.isDraw()) {
-      setGameResult('Draw!');
+      setGameResult({ type: 'draw' });
       setGameOver(true);
       return true;
     }
@@ -231,18 +370,27 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     setGameResult(null);
     setCaptured({ w: [], b: [] });
     setHintArrow(null);
+    setViewingMoveIndex(null);
+    setPendingPromotion(null);
+    setPremove(null);
     setIsAiThinking(false);
   };
 
   const resign = () => {
     if (gameOver) return;
     setGameOver(true);
-    setGameResult('You resigned. Opponent Wins!');
+    setGameResult({ type: 'resign', loserColor: playerColor });
   };
 
   const forceGameOver = (result) => {
     setGameOver(true);
     setGameResult(result);
+  };
+
+  // Force with structured data
+  const forceGameOverStructured = (resultObj) => {
+    setGameOver(true);
+    setGameResult(resultObj);
   };
 
   const makeExternalMove = (san) => {
@@ -259,6 +407,8 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
 
   return {
     game, fen, moveHistory, gameOver, gameResult, captured, isAiThinking,
-    playerColor, setPlayerColor, handleSquareClick, resetGame, undoMove, hintArrow, resign, forceGameOver, makeExternalMove
+    playerColor, setPlayerColor, handleSquareClick, resetGame, undoMove, hintArrow, resign, forceGameOver, forceGameOverStructured, makeExternalMove,
+    viewingGame, viewingMoveIndex, isViewingHistory, goToMove, goBack, goForward, goToStart, goToEnd,
+    pendingPromotion, premove, completePromotion, cancelPromotion
   };
 }

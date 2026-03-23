@@ -971,21 +971,37 @@ app.post('/api/chat', async (req, res) => {
 // Create a new game room
 app.post('/api/rooms/create', verifyToken, async (req, res) => {
   try {
-    const roomCode = GameRoom.schema.statics.generateRoomCode();
-    
-    const gameRoom = new GameRoom({
-      roomCode,
+    // Clean up any old waiting/completed rooms by this host first
+    await GameRoom.deleteMany({
       host: req.userId,
-      hostColor: 'w'
+      status: { $in: ['waiting', 'completed'] }
     });
-    
-    await gameRoom.save();
-    
-    res.json({ 
-      roomCode, 
-      roomId: gameRoom._id,
-      shareUrl: `http://localhost:5173/join?room=${roomCode}`
-    });
+
+    // Generate a unique room code (retry if collision)
+    let roomCode, saved = false;
+    for (let i = 0; i < 5; i++) {
+      roomCode = GameRoom.schema.statics.generateRoomCode();
+      // Remove any stale room with this code
+      await GameRoom.deleteOne({ roomCode });
+      try {
+        const gameRoom = new GameRoom({
+          roomCode,
+          host: req.userId,
+          hostColor: 'w'
+        });
+        await gameRoom.save();
+        saved = true;
+        break;
+      } catch (e) {
+        if (e.code !== 11000) throw e; // only retry on duplicate key
+      }
+    }
+
+    if (!saved) {
+      return res.status(500).json({ error: 'Could not create room, try again' });
+    }
+
+    res.json({ roomCode });
   } catch (error) {
     console.error('Create room error:', error);
     res.status(500).json({ error: error.message });
@@ -996,30 +1012,40 @@ app.post('/api/rooms/create', verifyToken, async (req, res) => {
 app.post('/api/rooms/join', verifyToken, async (req, res) => {
   try {
     const { roomCode } = req.body;
-    
+
     const gameRoom = await GameRoom.findOne({ roomCode });
     if (!gameRoom) {
-      return res.status(404).json({ error: 'Room not found' });
+      return res.status(404).json({ error: 'Room not found. Ask your friend for a new link.' });
     }
-    
-    if (gameRoom.guest) {
-      return res.status(400).json({ error: 'Room is full' });
-    }
-    
+
     if (gameRoom.host.toString() === req.userId) {
       return res.status(400).json({ error: 'Cannot join your own room' });
     }
-    
-    gameRoom.guest = req.userId;
-    gameRoom.guestColor = gameRoom.hostColor === 'w' ? 'b' : 'w';
-    gameRoom.status = 'active';
-    
-    await gameRoom.save();
-    
-    res.json({ 
+
+    // If room is completed or already has a different guest, it's stale
+    if (gameRoom.status === 'completed') {
+      return res.status(400).json({ error: 'This game already ended. Ask your friend to create a new one.' });
+    }
+
+    // If guest already set and it's a different user, room is full
+    if (gameRoom.guest && gameRoom.guest.toString() !== req.userId) {
+      return res.status(400).json({ error: 'Room is full. Ask your friend to create a new game.' });
+    }
+
+    // Allow re-joining if you're already the guest (reconnect)
+    if (!gameRoom.guest) {
+      gameRoom.guest = req.userId;
+      gameRoom.guestColor = gameRoom.hostColor === 'w' ? 'b' : 'w';
+      gameRoom.status = 'active';
+      await gameRoom.save();
+    }
+
+    const hostUser = await User.findById(gameRoom.host, 'name avatar');
+
+    res.json({
       roomId: gameRoom._id,
       roomCode,
-      host: gameRoom.host,
+      host: { id: gameRoom.host, name: hostUser?.name || 'Host', avatar: hostUser?.avatar || '?' },
       hostColor: gameRoom.hostColor,
       guestColor: gameRoom.guestColor,
       status: gameRoom.status
@@ -1178,11 +1204,23 @@ io.on('connection', (socket) => {
       console.error('gameSync error:', e);
     }
 
-    // Notify the room that someone joined
-    socket.to(roomCode).emit('userJoined', {
-      message: 'Opponent has joined',
-      userId: socket.userId
-    });
+    // Notify the room that someone joined (include name for UI)
+    try {
+      const joiner = await User.findById(socket.userId, 'name avatar');
+      socket.to(roomCode).emit('userJoined', {
+        message: 'Opponent has joined',
+        userId: socket.userId,
+        name: joiner?.name || 'Opponent',
+        avatar: joiner?.avatar || '?'
+      });
+    } catch (e) {
+      socket.to(roomCode).emit('userJoined', {
+        message: 'Opponent has joined',
+        userId: socket.userId,
+        name: 'Opponent',
+        avatar: '?'
+      });
+    }
   });
 
   // ── Make a move (server-validated) ──

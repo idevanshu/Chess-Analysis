@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ChessBoard from './ChessBoard';
 import { useChessLogic } from './useChessLogic';
+import { useChessSound } from './useChessSound';
 import { useChessTimer, formatTime } from './useChessTimer';
 import { useGemini } from './useGemini';
 import { useMultiplayer } from './useMultiplayer';
@@ -9,7 +10,7 @@ import { useAuth } from './context/AuthContext';
 import AuthPage from './AuthPage';
 import Dashboard from './DashboardNew';
 import GameMode from './GameMode';
-import { ChevronDown, Settings, MessageSquare, Plus, BarChart3, LogOut, Copy, Check, Undo2, Clock } from 'lucide-react';
+import { ChevronDown, Settings, MessageSquare, Plus, BarChart3, LogOut, Copy, Check, Undo2, Clock, ArrowLeft, User, Swords, Wifi, WifiOff, Volume2, VolumeX, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw } from 'lucide-react';
 
 // Classic chess clock panel — sits to the left of the board
 function ChessClock({ whiteTime, blackTime, activeTurn, gameStarted, gameOver, playerColor, timeControl }) {
@@ -170,6 +171,11 @@ function GameView() {
   const [selectedSquare, setSelectedSquare] = useState(null);
   const [autoJoinRoomCode, setAutoJoinRoomCode] = useState(null);
   const [timeControl, setTimeControl] = useState(null); // { initialTime, increment, label, format }
+  const [autoFlipLocal, setAutoFlipLocal] = useState(true);
+  const [manualFlip, setManualFlip] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
+  const { playSound, enabledRef: soundEnabledRef } = useChessSound();
+  const movesScrollRef = useRef(null);
 
   const currentPlayer = PLAYERS[activePlayerId];
   
@@ -179,11 +185,15 @@ function GameView() {
     const roomCode = params.get('roomCode');
     if (roomCode) {
       setAutoJoinRoomCode(roomCode);
+      // Clean URL so refreshing doesn't re-trigger join
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
   const {
     game, fen, moveHistory, gameOver, gameResult, captured, isAiThinking,
-    playerColor, setPlayerColor, handleSquareClick, resetGame, undoMove, hintArrow, resign, forceGameOver, makeExternalMove
+    playerColor, setPlayerColor, handleSquareClick, resetGame, undoMove, hintArrow, resign, forceGameOver, forceGameOverStructured, makeExternalMove,
+    viewingGame, viewingMoveIndex, isViewingHistory, goToMove, goBack, goForward, goToStart, goToEnd,
+    pendingPromotion, premove, completePromotion, cancelPromotion
   } = useChessLogic(currentPlayer, hintsEnabled, gameMode);
 
   // Chess timer
@@ -198,10 +208,10 @@ function GameView() {
   // Handle timeout — end game when clock runs out
   useEffect(() => {
     if (isTimedOut && timedOutColor && !gameOver) {
-      const winner = timedOutColor === 'w' ? 'Black' : 'White';
-      forceGameOver(`${winner} Wins on Time!`);
+      const winnerColor = timedOutColor === 'w' ? 'b' : 'w';
+      forceGameOverStructured({ type: 'timeout', winnerColor, loserColor: timedOutColor });
     }
-  }, [isTimedOut, timedOutColor, gameOver, forceGameOver]);
+  }, [isTimedOut, timedOutColor, gameOver, forceGameOverStructured]);
 
   // Get Gemini commentary only for AI mode
   const {
@@ -220,13 +230,13 @@ function GameView() {
   const handleGameEnded = useCallback((data) => {
     console.log('Game ended:', data);
     if (data.result === 'opponent_resigned') {
-      forceGameOver('Opponent Resigned. You Win!');
+      forceGameOverStructured({ type: 'opponent_resigned', winnerColor: playerColor });
     } else if (data.reason === 'checkmate') {
       // Server detected checkmate — chess.js locally will also catch it
     } else if (data.reason === 'draw') {
-      forceGameOver('Draw!');
+      forceGameOverStructured({ type: 'draw' });
     }
-  }, [forceGameOver]);
+  }, [forceGameOverStructured, playerColor]);
 
   // Sync handler for late joins / reconnects
   const handleGameSync = useCallback((data) => {
@@ -234,7 +244,7 @@ function GameView() {
     // Board sync is handled by chess.js replaying moves — for now just log
   }, []);
 
-  const { sendMove, resign: multiplayerResign, connected: mpConnected, opponentOnline } = useMultiplayer(
+  const { sendMove, resign: multiplayerResign, connected: mpConnected, opponentOnline, opponentName: mpOpponentName, setOpponentName: setMpOpponentName } = useMultiplayer(
     multiplayerRoomCode,
     user?.id,
     token,
@@ -328,31 +338,24 @@ function GameView() {
       
       console.log('Formatted Moves:', movesFormatted);
       
+      // Determine result from structured gameResult object
       let resultStr = 'draw';
-      console.log('Game Result String:', gameResult);
-      
-      // Detect win/loss more robustly
-      if (gameResult) {
-        if (gameResult.includes('Wins')) {
-          // "White Wins", "Black Wins", etc.
-          const whiteWins = gameResult.includes('White');
-          const playerIsWhite = playerColor === 'w';
-          resultStr = (whiteWins === playerIsWhite) ? 'win' : 'loss';
-          console.log('Win/Loss game detected:', { whiteWins, playerIsWhite, resultStr });
-        } else if (gameResult.includes('Draw') || gameResult.includes('draw')) {
-          resultStr = 'draw';
-          console.log('Draw detected');
-        } else if (gameResult.includes('Resignation') || gameResult.includes('resignation')) {
-          // Player resigned - it's a loss
+      if (gameResult && typeof gameResult === 'object') {
+        const r = gameResult;
+        if (r.type === 'checkmate' || r.type === 'timeout' || r.type === 'opponent_resigned') {
+          resultStr = r.winnerColor === playerColor ? 'win' : 'loss';
+        } else if (r.type === 'resign') {
           resultStr = 'loss';
-          console.log('Resignation detected - marking as loss');
-        } else if (gameResult.includes('Checkmate')) {
-          // Checkmate - need to determine winner
-          resultStr = 'win'; // Assume it's a win (dominated the game)
-          console.log('Checkmate detected - marking as win');
+        } else {
+          resultStr = 'draw'; // stalemate, repetition, insufficient, fifty-move, draw
         }
+      } else if (typeof gameResult === 'string') {
+        // Legacy fallback
+        if (gameResult.includes('Win') && !gameResult.includes('Opponent')) resultStr = 'win';
+        else if (gameResult.includes('resigned') || gameResult.includes('defeated')) resultStr = 'loss';
+        else resultStr = 'draw';
       }
-      console.log('Final game result determined:', resultStr);
+      console.log('Game result:', gameResult, '→', resultStr);
 
       const gameData = {
         opponent: gameMode === 'ai' ? currentPlayer.name : (multiplayerOpponent?.name || 'Local Player'),
@@ -395,6 +398,48 @@ function GameView() {
     }
   }, [gameOver, gameResult, token]);
 
+  // --- Sound effects ---
+  useEffect(() => {
+    if (moveHistory.length === 0 || !soundEnabledRef.current) return;
+    playSound(moveHistory[moveHistory.length - 1]);
+  }, [moveHistory.length]);
+
+  useEffect(() => {
+    if (gameOver && soundEnabledRef.current && gameResult && gameResult.type !== 'checkmate') {
+      playSound('gameEnd');
+    }
+  }, [gameOver]);
+
+  const handleToggleSound = () => {
+    setSoundOn(prev => {
+      soundEnabledRef.current = !prev;
+      return !prev;
+    });
+  };
+
+  // --- Keyboard navigation for move history ---
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!gameMode || showGameMode) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); goBack(); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); goForward(); }
+      else if (e.key === 'Home') { e.preventDefault(); goToStart(); }
+      else if (e.key === 'End') { e.preventDefault(); goToEnd(); }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameMode, showGameMode, moveHistory.length]);
+
+  // Auto-scroll moves panel
+  useEffect(() => {
+    if (movesScrollRef.current) {
+      if (viewingMoveIndex === null) {
+        movesScrollRef.current.scrollTop = movesScrollRef.current.scrollHeight;
+      }
+    }
+  }, [moveHistory.length, viewingMoveIndex]);
+
   const handlePlayAI = (tc) => {
     setTimeControl(tc || null);
     setGameMode('ai');
@@ -414,11 +459,18 @@ function GameView() {
     setMultiplayerRoomCode(roomCode);
     if (mode === 'host') {
       setGameMode('multiplayer_host');
-      setPlayerColor('w');
+      setPlayerColor('w'); // host is always white
     } else {
       setGameMode('multiplayer_guest');
       setMultiplayerOpponent(data?.host);
-      setPlayerColor(data?.guestColor === 'w' || data?.guestColor === 'white' ? 'w' : 'b');
+      // Set opponent name from join response (host info)
+      if (data?.host?.name) {
+        setMpOpponentName(data.host.name);
+      }
+      // Guest gets the opposite color — default to black
+      const color = data?.guestColor;
+      setPlayerColor(color === 'w' || color === 'white' ? 'w' : 'b');
+      console.log('[MP] Guest color set to:', color === 'w' || color === 'white' ? 'w' : 'b', 'raw:', color);
     }
     setShowGameMode(false);
   };
@@ -429,7 +481,8 @@ function GameView() {
   };
 
   const copyRoomCode = async () => {
-    await navigator.clipboard.writeText(multiplayerRoomCode);
+    const shareLink = `${window.location.origin}${window.location.pathname}?roomCode=${multiplayerRoomCode}`;
+    await navigator.clipboard.writeText(shareLink);
     setColorCopied(true);
     setTimeout(() => setColorCopied(false), 2000);
   };
@@ -456,7 +509,9 @@ function GameView() {
     }
     if (gameMode === 'ai' && gameOver && gameResult && commentaryEnabled && !gameOverCommentedRef.current) {
       gameOverCommentedRef.current = true;
-      commentOnGameOver(gameResult, fen, moveHistory.length);
+      // Pass a readable string to the commentator
+      const rd = getResultDisplay();
+      commentOnGameOver(`${rd.title} ${rd.subtitle}`, fen, moveHistory.length);
     }
   }, [gameOver, gameResult, gameMode]);
 
@@ -498,17 +553,108 @@ function GameView() {
   }, [moveHistory.length, gameMode]);
 
   const onSquareClick = useCallback((sq, currentSelected) => {
+    // If viewing history, snap back to live position
+    if (isViewingHistory) { goToEnd(); return; }
+    // Block moves in multiplayer until opponent is connected
+    if (gameMode?.includes('multiplayer') && !opponentOnline) return;
     const result = handleSquareClick(sq, currentSelected);
     if (result !== undefined) {
       setSelectedSquare(result);
     }
-  }, [handleSquareClick]);
+  }, [handleSquareClick, gameMode, opponentOnline, isViewingHistory]);
 
   const handlePlayerSelect = (id) => {
     setActivePlayerId(id);
     setShowPlayerDropdown(false);
     if (gameMode === 'ai') {
       handleNewGame();
+    }
+  };
+
+  // Format game result for display
+  const getResultDisplay = () => {
+    if (!gameResult) return { title: 'Game Over', subtitle: '', icon: '♟' };
+
+    // Legacy string results (from old forceGameOver calls)
+    if (typeof gameResult === 'string') {
+      return { title: 'Game Over', subtitle: gameResult, icon: '♟' };
+    }
+
+    const r = gameResult;
+
+    // Figure out player/opponent names based on mode
+    const getPlayerName = (color) => {
+      if (gameMode === 'ai') {
+        return color === playerColor ? (user?.name || 'You') : currentPlayer.name;
+      } else if (gameMode === 'local') {
+        return color === 'w' ? 'White' : 'Black';
+      } else {
+        // multiplayer
+        return color === playerColor ? (user?.name || 'You') : (mpOpponentName || 'Opponent');
+      }
+    };
+
+    const youWon = r.winnerColor === playerColor;
+    const winnerName = r.winnerColor ? getPlayerName(r.winnerColor) : null;
+    const loserName = r.winnerColor ? getPlayerName(r.winnerColor === 'w' ? 'b' : 'w') : null;
+
+    switch (r.type) {
+      case 'checkmate': {
+        if (gameMode === 'local') {
+          return { title: 'Checkmate!', subtitle: `${winnerName} defeated ${loserName}`, icon: '♚' };
+        }
+        return {
+          title: youWon ? 'Checkmate!' : 'Checkmate!',
+          subtitle: youWon
+            ? `You defeated ${loserName}`
+            : `You got defeated by ${winnerName}`,
+          icon: youWon ? '👑' : '♚',
+        };
+      }
+      case 'stalemate':
+        return { title: 'Stalemate!', subtitle: 'No legal moves. The game is a draw.', icon: '🤝' };
+      case 'repetition':
+        return { title: 'Draw!', subtitle: 'Threefold repetition.', icon: '🔁' };
+      case 'insufficient':
+        return { title: 'Draw!', subtitle: 'Insufficient material to checkmate.', icon: '🤝' };
+      case 'fifty-move':
+        return { title: 'Draw!', subtitle: '50-move rule. No captures or pawn moves.', icon: '🤝' };
+      case 'draw':
+        return { title: 'Draw!', subtitle: 'The game ended in a draw.', icon: '🤝' };
+      case 'resign': {
+        const resignerColor = r.loserColor;
+        const resignerName = getPlayerName(resignerColor);
+        const otherName = getPlayerName(resignerColor === 'w' ? 'b' : 'w');
+        if (gameMode === 'local') {
+          return { title: 'Resignation', subtitle: `${resignerName} resigned. ${otherName} wins!`, icon: '🏳️' };
+        }
+        return {
+          title: 'Resignation',
+          subtitle: resignerColor === playerColor
+            ? `You resigned. ${otherName} wins!`
+            : `${resignerName} resigned. You win!`,
+          icon: '🏳️',
+        };
+      }
+      case 'opponent_resigned': {
+        const opName = mpOpponentName || 'Opponent';
+        return { title: 'Opponent Resigned', subtitle: `${opName} resigned. You win!`, icon: '👑' };
+      }
+      case 'timeout': {
+        if (gameMode === 'local') {
+          return { title: 'Time\'s Up!', subtitle: `${loserName} ran out of time. ${winnerName} wins!`, icon: '⏱️' };
+        }
+        const youTimedOut = r.loserColor === playerColor;
+        return {
+          title: 'Time\'s Up!',
+          subtitle: youTimedOut
+            ? `You ran out of time. ${winnerName} wins!`
+            : `${loserName} ran out of time. You win!`,
+          icon: '⏱️',
+        };
+      }
+      default:
+        return { title: 'Game Over', subtitle: '', icon: '♟' };
     }
   };
 
@@ -519,8 +665,13 @@ function GameView() {
     setChatInput('');
   };
 
-  // Convert moved square names for last move highlight
-  const lastMoveObj = moveHistory[moveHistory.length - 1];
+  // Display game: use viewingGame when browsing history, otherwise live game
+  const displayGame = viewingGame || game;
+
+  // Last move highlight: show viewed move when browsing, otherwise latest
+  const lastMoveObj = isViewingHistory
+    ? (viewingMoveIndex >= 0 ? moveHistory[viewingMoveIndex] : null)
+    : moveHistory[moveHistory.length - 1];
 
   return (
     <div style={{ '--player-color': currentPlayer.color }} className="flex flex-col min-h-screen">
@@ -531,6 +682,17 @@ function GameView() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-violet-600 flex items-center justify-center font-bold text-sm">♟</div>
             <span className="font-display font-bold text-lg bg-gradient-to-br from-cyan-400 to-violet-600 text-transparent bg-clip-text hidden sm:block">Chess Legends</span>
           </div>
+
+          {gameMode && (
+            <button
+              onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white/95 hover:text-white transition-all shadow-sm"
+              title="Back to menu"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline font-medium">Menu</span>
+            </button>
+          )}
 
           {gameMode && gameMode.includes('multiplayer') && (
             <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-xs">
@@ -598,7 +760,8 @@ function GameView() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Game status info */}
           <div className="hidden sm:flex items-center gap-2 text-sm">
             {timeControl && (
               <>
@@ -606,15 +769,29 @@ function GameView() {
                 <span className="text-white/20">·</span>
               </>
             )}
-            <span className="font-mono text-white/40 text-xs">Move {Math.floor(moveHistory.length / 2) || 0}</span>
-            <span className="text-white/20">·</span>
-            {gameMode === 'ai' ? (
-              <span className="text-[var(--player-color)] font-semibold">{isAiThinking ? 'Thinking...' : gameOver ? 'Game Over' : 'Your move'}</span>
-            ) : gameMode === 'local' ? (
-              <span className="text-[var(--player-color)] font-semibold">{gameOver ? 'Game Over' : `Turn: ${game.turn() === 'w' ? 'White' : 'Black'}`}</span>
-            ) : (
-              <span className="text-[var(--player-color)] font-semibold">{gameOver ? 'Game Over' : 'Playing ' + (gameMode === 'multiplayer_host' ? 'as Host' : 'as Guest')}</span>
+            {gameMode && (
+              <>
+                <span className="font-mono text-white/40 text-xs">Move {Math.floor(moveHistory.length / 2) || 0}</span>
+                <span className="text-white/20">·</span>
+              </>
             )}
+            {gameMode === 'ai' ? (
+              <span className="text-[var(--player-color)] font-semibold text-xs">{isAiThinking ? 'Thinking...' : gameOver ? 'Game Over' : 'Your move'}</span>
+            ) : gameMode === 'local' ? (
+              <span className="text-[var(--player-color)] font-semibold text-xs">{gameOver ? 'Game Over' : `Turn: ${game.turn() === 'w' ? 'White' : 'Black'}`}</span>
+            ) : gameMode?.includes('multiplayer') ? (
+              <span className="text-cyan-400 font-semibold text-xs">
+                {gameOver ? 'Game Over' : opponentOnline ? `vs ${mpOpponentName || 'Opponent'}` : 'Waiting for opponent...'}
+              </span>
+            ) : null}
+          </div>
+
+          {/* User profile badge */}
+          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-white/5 border border-white/10 rounded-lg">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center text-[10px] font-bold text-white">
+              {user?.name?.[0]?.toUpperCase() || '?'}
+            </div>
+            <span className="text-xs font-medium text-white/80 hidden sm:block max-w-[100px] truncate">{user?.name || 'Player'}</span>
           </div>
 
           <button
@@ -665,6 +842,9 @@ function GameView() {
                 </button>
                 <button onClick={() => setHintsEnabled(!hintsEnabled)} className={`game-btn ${hintsEnabled ? 'active' : ''}`}>Hints</button>
                 <button onClick={() => setCommentaryEnabled(!commentaryEnabled)} className={`game-btn ${commentaryEnabled ? 'active' : ''}`}>Comm</button>
+                <button onClick={handleToggleSound} className={`game-btn ${soundOn ? 'active' : ''}`} title="Toggle sound">
+                  {soundOn ? <Volume2 className="w-3 h-3"/> : <VolumeX className="w-3 h-3"/>}
+                </button>
                 <button onClick={resign} className="game-btn danger">Resign</button>
                 <div className="flex gap-1.5 ml-2">
                   <button
@@ -688,11 +868,25 @@ function GameView() {
                 >
                   <Undo2 className="w-3 h-3"/> Back
                 </button>
+                <button onClick={() => setAutoFlipLocal(!autoFlipLocal)} className={`game-btn ${autoFlipLocal ? 'active' : ''}`} title="Auto-flip board on turn change">
+                  <RotateCcw className="w-3 h-3"/> Auto Flip
+                </button>
+                {!autoFlipLocal && (
+                  <button onClick={() => setManualFlip(!manualFlip)} className="game-btn" title="Flip board">
+                    Flip
+                  </button>
+                )}
+                <button onClick={handleToggleSound} className={`game-btn ${soundOn ? 'active' : ''}`} title="Toggle sound">
+                  {soundOn ? <Volume2 className="w-3 h-3"/> : <VolumeX className="w-3 h-3"/>}
+                </button>
                 <button onClick={resign} className="game-btn danger">Resign</button>
               </>
             ) : (
               <>
                 <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }} className="game-btn primary"><Plus className="w-3 h-3"/> New Game</button>
+                <button onClick={handleToggleSound} className={`game-btn ${soundOn ? 'active' : ''}`} title="Toggle sound">
+                  {soundOn ? <Volume2 className="w-3 h-3"/> : <VolumeX className="w-3 h-3"/>}
+                </button>
                 <button onClick={() => { resign(); multiplayerResign(); }} className="game-btn danger">Resign</button>
               </>
             )}
@@ -716,22 +910,66 @@ function GameView() {
             {/* Board */}
             <div className="relative flex-1 p-[6px]">
               <ChessBoard
-                game={game}
-                flipped={playerColor === 'b'}
-                selectedSquare={selectedSquare}
+                game={displayGame}
+                flipped={
+                  gameMode === 'local'
+                    ? (autoFlipLocal && !isViewingHistory ? game.turn() === 'b' : manualFlip)
+                    : playerColor === 'b'
+                }
+                selectedSquare={isViewingHistory ? null : selectedSquare}
                 handleSquareClick={onSquareClick}
                 lastMove={lastMoveObj}
-                hintArrow={hintArrow}
+                hintArrow={isViewingHistory ? null : hintArrow}
+                pendingPromotion={pendingPromotion}
+                premove={premove}
+                onPromote={completePromotion}
+                onCancelPromotion={cancelPromotion}
               />
 
-              {gameOver && (
-                <div className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center z-50 rounded animate-in fade-in duration-300">
-                  <div className="text-5xl mb-3">♟</div>
-                  <div className="font-display text-3xl font-bold text-[var(--player-color)] drop-shadow-[0_0_20px_var(--player-color)] mb-2">Game Over</div>
-                  <div className="text-sm text-white/70 text-center max-w-[220px] mb-6">{gameResult}</div>
-                  <button onClick={handleNewGame} className="game-btn primary px-8 py-2.5 text-sm">Play Again</button>
+              {/* Reviewing history indicator */}
+              {isViewingHistory && !gameOver && (
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 px-3 py-1 bg-amber-500/20 border border-amber-500/40 rounded-full text-[10px] font-bold text-amber-400 backdrop-blur-sm">
+                  REVIEWING — Click board to return
                 </div>
               )}
+
+              {/* Waiting for opponent overlay */}
+              {gameMode?.includes('multiplayer') && !opponentOnline && !gameOver && (
+                <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center z-40 rounded">
+                  <div className="w-10 h-10 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4" />
+                  <div className="text-lg font-bold text-white/90 mb-1">Waiting for opponent</div>
+                  <div className="text-xs text-white/50 mb-4">Share the room link to invite a friend</div>
+                  {multiplayerRoomCode && (
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-bold text-cyan-400 tracking-widest">{multiplayerRoomCode}</span>
+                      <button onClick={copyRoomCode} className="px-2 py-1 text-xs bg-white/10 hover:bg-white/20 rounded text-white/70 transition-colors">
+                        {colorCopied ? 'Copied!' : 'Copy Link'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {gameOver && (() => {
+                const rd = getResultDisplay();
+                const isWin = gameResult?.winnerColor === playerColor;
+                const isDraw = ['stalemate', 'repetition', 'insufficient', 'fifty-move', 'draw'].includes(gameResult?.type);
+                const accentColor = isDraw ? 'text-amber-400' : isWin ? 'text-emerald-400' : 'text-red-400';
+                const glowColor = isDraw ? 'drop-shadow-[0_0_20px_rgba(245,158,11,0.5)]' : isWin ? 'drop-shadow-[0_0_20px_rgba(16,185,129,0.5)]' : 'drop-shadow-[0_0_20px_rgba(239,68,68,0.5)]';
+                return (
+                  <div className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center z-50 rounded animate-in fade-in duration-300">
+                    <div className="text-5xl mb-3">{rd.icon}</div>
+                    <div className={`font-display text-3xl font-bold ${accentColor} ${glowColor} mb-2`}>{rd.title}</div>
+                    <div className="text-sm text-white/70 text-center max-w-[260px] mb-6">{rd.subtitle}</div>
+                    <div className="flex gap-3">
+                      <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }} className="game-btn px-6 py-2.5 text-sm">
+                        <ArrowLeft className="w-3.5 h-3.5"/> Menu
+                      </button>
+                      <button onClick={handleNewGame} className="game-btn primary px-8 py-2.5 text-sm">Play Again</button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -807,26 +1045,68 @@ function GameView() {
             </div>
           </div>
 
-          {/* Match History */}
-          <div className="glass-panel flex flex-col min-h-[120px] max-h-[200px] text-xs">
+          {/* Move History & Analysis */}
+          <div className="glass-panel flex flex-col min-h-[120px] max-h-[280px] text-xs">
             <div className="panel-header bg-transparent border-b border-purple-500/20 text-purple-300 flex items-center gap-2 shrink-0">
               <span className="text-[14px]">📋</span> Moves
+              {isViewingHistory && (
+                <span className="ml-auto text-[9px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold">REVIEWING</span>
+              )}
             </div>
-            <div className="flex-1 overflow-y-auto p-2 font-mono">
+            <div className="flex-1 overflow-y-auto p-2 font-mono" ref={movesScrollRef}>
               {moveHistory.length === 0 ? (
                 <div className="text-white/30 text-center py-3">No moves yet</div>
               ) : (
                 <div className="grid grid-cols-[28px_1fr_1fr] gap-x-2 gap-y-0.5 items-center px-1">
-                  {Array.from({ length: Math.ceil(moveHistory.length / 2) }).map((_, i) => (
-                    <React.Fragment key={i}>
-                      <span className="text-white/30">{i + 1}.</span>
-                      <span className={`px-1.5 py-0.5 rounded ${i * 2 === moveHistory.length - 1 ? 'bg-[var(--player-color)]/20 text-[var(--player-color)]' : 'text-white/80'}`}>{moveHistory[i * 2]?.san}</span>
-                      <span className={`px-1.5 py-0.5 rounded ${i * 2 + 1 === moveHistory.length - 1 ? 'bg-[var(--player-color)]/20 text-[var(--player-color)]' : 'text-white/80'}`}>{moveHistory[i * 2 + 1]?.san || ''}</span>
-                    </React.Fragment>
-                  ))}
+                  {Array.from({ length: Math.ceil(moveHistory.length / 2) }).map((_, i) => {
+                    const whiteIdx = i * 2;
+                    const blackIdx = i * 2 + 1;
+                    const currentViewIdx = viewingMoveIndex === null ? moveHistory.length - 1 : viewingMoveIndex;
+                    return (
+                      <React.Fragment key={i}>
+                        <span className="text-white/30">{i + 1}.</span>
+                        <span
+                          onClick={() => goToMove(whiteIdx)}
+                          className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors hover:bg-white/10 ${
+                            whiteIdx === currentViewIdx ? 'bg-cyan-500/20 text-cyan-400 ring-1 ring-cyan-500/30' : 'text-white/80'
+                          }`}
+                        >
+                          {moveHistory[whiteIdx]?.san}
+                        </span>
+                        {moveHistory[blackIdx] ? (
+                          <span
+                            onClick={() => goToMove(blackIdx)}
+                            className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors hover:bg-white/10 ${
+                              blackIdx === currentViewIdx ? 'bg-cyan-500/20 text-cyan-400 ring-1 ring-cyan-500/30' : 'text-white/80'
+                            }`}
+                          >
+                            {moveHistory[blackIdx].san}
+                          </span>
+                        ) : <span />}
+                      </React.Fragment>
+                    );
+                  })}
                 </div>
               )}
             </div>
+
+            {/* Navigation buttons */}
+            {moveHistory.length > 0 && (
+              <div className="flex items-center justify-center gap-1 px-2 py-1.5 border-t border-white/5 shrink-0">
+                <button onClick={goToStart} disabled={viewingMoveIndex === -1} className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white disabled:opacity-25 disabled:hover:bg-transparent transition-colors" title="First move (Home)">
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button onClick={goBack} disabled={viewingMoveIndex === -1} className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white disabled:opacity-25 disabled:hover:bg-transparent transition-colors" title="Previous move (←)">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button onClick={goForward} disabled={viewingMoveIndex === null} className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white disabled:opacity-25 disabled:hover:bg-transparent transition-colors" title="Next move (→)">
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button onClick={goToEnd} disabled={viewingMoveIndex === null} className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white disabled:opacity-25 disabled:hover:bg-transparent transition-colors" title="Current position (End)">
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Bottom panel: GameMode / Commentary / Multiplayer status */}
@@ -896,34 +1176,100 @@ function GameView() {
               </div>
             </div>
           ) : (
-            <div className="glass-panel flex-1 flex flex-col min-h-[100px] justify-center">
-              <div className="p-4 text-center">
-                <div className="text-sm font-semibold text-white/90 mb-2">
-                  {opponentOnline ? 'Opponent Connected' : gameMode === 'multiplayer_host' ? 'Waiting for opponent...' : 'Connecting...'}
-                </div>
-                <div className="text-xs text-white/50 mb-3">
-                  {gameMode === 'multiplayer_host' && !opponentOnline
-                    ? 'Share the room code to invite your friend'
-                    : multiplayerOpponent?.name || 'Online Game'
-                  }
-                </div>
-                {/* Connection indicators */}
-                <div className="flex items-center justify-center gap-4 mb-3">
-                  <div className="flex items-center gap-1.5">
-                    <div className={`w-2 h-2 rounded-full ${mpConnected ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-red-500'}`} />
-                    <span className="text-[10px] text-white/40">You</span>
+            <div className="glass-panel flex-1 flex flex-col min-h-[100px]">
+              {/* Header bar */}
+              <div className="panel-header bg-transparent border-b border-cyan-500/20 text-cyan-300 flex items-center gap-2 shrink-0">
+                <Swords className="w-3.5 h-3.5" /> Online Match
+                <span className={`ml-auto text-[9px] normal-case px-2 py-0.5 rounded font-bold ${
+                  opponentOnline ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400 animate-pulse'
+                }`}>
+                  {opponentOnline ? 'LIVE' : 'WAITING'}
+                </span>
+              </div>
+
+              <div className="p-3 flex flex-col gap-3 flex-1">
+                {/* Player cards */}
+                <div className="flex flex-col gap-2">
+                  {/* You */}
+                  <div className="flex items-center gap-3 p-2.5 bg-white/5 border border-white/10 rounded-xl">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                      {user?.name?.[0]?.toUpperCase() || '?'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-white/90 truncate">{user?.name || 'You'}</div>
+                      <div className="text-[10px] text-white/40">
+                        {playerColor === 'w' ? '♔ White' : '♚ Black'}
+                      </div>
+                    </div>
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${mpConnected ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-red-500'}`} />
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className={`w-2 h-2 rounded-full ${opponentOnline ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-amber-500 animate-pulse'}`} />
-                    <span className="text-[10px] text-white/40">Opponent</span>
+
+                  {/* VS divider */}
+                  <div className="flex items-center gap-2 px-2">
+                    <div className="flex-1 h-px bg-white/10" />
+                    <span className="text-[9px] font-bold text-white/20 tracking-widest">VS</span>
+                    <div className="flex-1 h-px bg-white/10" />
+                  </div>
+
+                  {/* Opponent */}
+                  <div className={`flex items-center gap-3 p-2.5 border rounded-xl transition-all ${
+                    opponentOnline
+                      ? 'bg-white/5 border-white/10'
+                      : 'bg-amber-500/5 border-amber-500/20 border-dashed'
+                  }`}>
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                      opponentOnline
+                        ? 'bg-gradient-to-br from-purple-500 to-pink-600 text-white'
+                        : 'bg-white/5 border border-dashed border-white/20 text-white/30'
+                    }`}>
+                      {opponentOnline ? (mpOpponentName?.[0]?.toUpperCase() || '?') : '?'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-white/90 truncate">
+                        {opponentOnline ? (mpOpponentName || 'Opponent') : 'Waiting for friend...'}
+                      </div>
+                      <div className="text-[10px] text-white/40">
+                        {opponentOnline
+                          ? (playerColor === 'w' ? '♚ Black' : '♔ White')
+                          : 'Share the room link to invite'
+                        }
+                      </div>
+                    </div>
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${
+                      opponentOnline ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-amber-500 animate-pulse'
+                    }`} />
                   </div>
                 </div>
-                <div className="flex items-center justify-center gap-2 p-2 bg-white/5 rounded border border-white/10">
-                  <span className="text-xs text-white/60">Playing as:</span>
-                  <span className="text-sm font-bold text-[var(--player-color)]">
-                    {playerColor === 'w' || playerColor === 'white' ? '♔ White' : '♚ Black'}
-                  </span>
-                </div>
+
+                {/* Room code + copy link (for host when waiting) */}
+                {gameMode === 'multiplayer_host' && !opponentOnline && (
+                  <div className="p-2.5 bg-black/20 border border-white/5 rounded-xl">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] text-white/30 uppercase tracking-wider font-bold">Room Code</span>
+                      <button
+                        onClick={copyRoomCode}
+                        className="text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors flex items-center gap-1"
+                      >
+                        {colorCopied ? <><Check size={10} /> Copied</> : <><Copy size={10} /> Copy link</>}
+                      </button>
+                    </div>
+                    <div className="text-center font-mono text-lg font-black text-cyan-400 tracking-[0.3em]">
+                      {multiplayerRoomCode}
+                    </div>
+                  </div>
+                )}
+
+                {/* Current turn indicator */}
+                {opponentOnline && !gameOver && (
+                  <div className="flex items-center justify-center gap-2 p-2 bg-white/5 rounded-lg border border-white/10">
+                    <span className="text-xs text-white/60">
+                      {game.turn() === playerColor ? 'Your turn' : `${mpOpponentName || 'Opponent'}'s turn`}
+                    </span>
+                    <span className="text-sm font-bold text-[var(--player-color)]">
+                      {game.turn() === 'w' ? '♔' : '♚'}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           )}

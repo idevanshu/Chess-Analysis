@@ -5,6 +5,7 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
   const socketRef = useRef(null);
   const [connected, setConnected] = useState(false);
   const [opponentOnline, setOpponentOnline] = useState(false);
+  const [opponentName, setOpponentName] = useState(null);
 
   useEffect(() => {
     if (!roomCode || !userId) return;
@@ -35,6 +36,9 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
     socket.on('userJoined', (data) => {
       console.log('[MP] Opponent joined:', data);
       setOpponentOnline(true);
+      if (data.name) {
+        setOpponentName(data.name);
+      }
     });
 
     // Opponent disconnected
@@ -51,7 +55,6 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
 
     // Our move was confirmed by server
     socket.on('moveConfirmed', (data) => {
-      // Could be used for optimistic UI — for now just log
       console.log('[MP] Move confirmed:', data.san);
     });
 
@@ -66,10 +69,16 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
       onGameEnded(data);
     });
 
-    // Board sync on join/reconnect — lets late joiners catch up
+    // Board sync on join/reconnect
     socket.on('gameSync', (data) => {
       console.log('[MP] Game sync:', data);
       if (onSync) onSync(data);
+    });
+
+    // Opponent reconnected
+    socket.on('opponentReconnected', (data) => {
+      console.log('[MP] Opponent reconnected:', data);
+      setOpponentOnline(true);
     });
 
     return () => {
@@ -95,5 +104,5 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
     }
   }, [roomCode]);
 
-  return { sendMove, resign, connected, opponentOnline };
+  return { sendMove, resign, connected, opponentOnline, opponentName, setOpponentName };
 }

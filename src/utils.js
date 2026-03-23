@@ -227,8 +227,10 @@ export const getSquareName = (col, row, flipped) => {
 };
 
 export const getSquareCoords = (sq, flipped) => {
+    if (!sq || typeof sq !== 'string' || sq.length < 2) return { col: 0, row: 0 };
     const files = 'abcdefgh';
     const c = files.indexOf(sq[0]);
     const r = 8 - parseInt(sq[1]);
+    if (c === -1 || isNaN(r)) return { col: 0, row: 0 };
     return flipped ? {col: 7-c, row: 7-r} : {col: c, row: r};
 };
