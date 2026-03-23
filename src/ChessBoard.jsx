@@ -3,7 +3,7 @@ import { PIECE_SVG, getSquareName, getSquareCoords } from './utils';
 
 export default React.memo(function ChessBoard({
   game, flipped, selectedSquare, handleSquareClick, lastMove, hintArrow,
-  pendingPromotion, premove, onPromote, onCancelPromotion
+  pendingPromotion, premove, onPromote, onCancelPromotion, playerColor, gameMode
 }) {
   const [legalMoves, setLegalMoves] = useState([]);
   const [dragGhost, setDragGhost] = useState(null);
@@ -73,11 +73,15 @@ export default React.memo(function ChessBoard({
     handleClickRef.current(sq, selectedRef.current);
     const moveHappened = game.fen() !== fenBefore;
 
-    if (piece && !moveHappened && piece.color === game.turn()) {
+    const canDrag = piece && !moveHappened && (
+      piece.color === game.turn() ||
+      (gameMode !== 'local' && playerColor && piece.color === playerColor)
+    );
+    if (canDrag) {
       dragInfo.current = { active: true, sq, piece, moved: false, startX: e.clientX, startY: e.clientY };
       setDragGhost({ x: e.clientX, y: e.clientY, sq, pieceKey: piece.color + piece.type.toUpperCase(), moved: false });
     }
-  }, [game, pendingPromotion]);
+  }, [game, pendingPromotion, playerColor, gameMode]);
 
   // ─── Cell touch start ───
   const onCellTouchStart = useCallback((e, sq) => {
@@ -90,11 +94,15 @@ export default React.memo(function ChessBoard({
     handleClickRef.current(sq, selectedRef.current);
     const moveHappened = game.fen() !== fenBefore;
 
-    if (piece && !moveHappened && piece.color === game.turn()) {
+    const canDrag = piece && !moveHappened && (
+      piece.color === game.turn() ||
+      (gameMode !== 'local' && playerColor && piece.color === playerColor)
+    );
+    if (canDrag) {
       dragInfo.current = { active: true, sq, piece, moved: false, startX: t.clientX, startY: t.clientY };
       setDragGhost({ x: t.clientX, y: t.clientY, sq, pieceKey: piece.color + piece.type.toUpperCase(), moved: false });
     }
-  }, [game, pendingPromotion]);
+  }, [game, pendingPromotion, playerColor, gameMode]);
 
   // ─── Global event listeners ───
   useEffect(() => {
@@ -202,8 +210,6 @@ export default React.memo(function ChessBoard({
         let bg;
         if (isInCheck) {
           bg = 'bg-[#E84040]';
-        } else if (isPremove) {
-          bg = isLight ? 'bg-[#7CB3F0]' : 'bg-[#5A9AE0]'; // blue premove
         } else if (isHighlighted) {
           bg = isLight ? 'bg-[#E8A83E]' : 'bg-[#D4922E]';
         } else if (isSelected) {
@@ -224,6 +230,16 @@ export default React.memo(function ChessBoard({
             {isInCheck && (
               <div className="absolute inset-0 shadow-[inset_0_0_12px_rgba(239,68,68,0.7)] pointer-events-none z-[1] rounded-sm" />
             )}
+            {isPremove && (
+              <div
+                className="absolute inset-0 pointer-events-none z-[1]"
+                style={{
+                  background: isLight
+                    ? 'rgba(20, 85, 180, 0.41)'
+                    : 'rgba(20, 85, 180, 0.48)',
+                }}
+              />
+            )}
             {isLegal && (
               piece ? (
                 <div className="absolute inset-[3px] rounded-full border-[3px] border-black/20 pointer-events-none z-10" />
@@ -242,14 +258,14 @@ export default React.memo(function ChessBoard({
             )}
             {col === 0 && (
               <span className={`absolute top-[2px] left-[4px] text-[10px] font-bold pointer-events-none z-[3] select-none ${
-                isLight && !isHighlighted && !isPremove ? 'text-[#B58863]' : 'text-[#F0D9B5]'
+                isLight && !isHighlighted ? 'text-[#B58863]' : 'text-[#F0D9B5]'
               }`}>
                 {flipped ? row + 1 : 8 - row}
               </span>
             )}
             {row === 7 && (
               <span className={`absolute bottom-[1px] right-[4px] text-[10px] font-bold pointer-events-none z-[3] select-none ${
-                isLight && !isHighlighted && !isPremove ? 'text-[#B58863]' : 'text-[#F0D9B5]'
+                isLight && !isHighlighted ? 'text-[#B58863]' : 'text-[#F0D9B5]'
               }`}>
                 {flipped ? 'hgfedcba'[col] : 'abcdefgh'[col]}
               </span>
@@ -347,22 +363,6 @@ export default React.memo(function ChessBoard({
               />
             );
           })}
-
-          {/* Premove arrow */}
-          {premove && premove.from && premove.to && (() => {
-            const fromC = getSquareCoords(premove.from, flipped);
-            const toC = getSquareCoords(premove.to, flipped);
-            return (
-              <line
-                x1={fromC.col + 0.5} y1={fromC.row + 0.5}
-                x2={toC.col + 0.5} y2={toC.row + 0.5}
-                stroke="rgba(59,130,246,0.6)"
-                strokeWidth="0.18"
-                strokeLinecap="round"
-                strokeDasharray="0.3 0.15"
-              />
-            );
-          })()}
 
           {/* Hint arrow */}
           {hintArrow && (() => {

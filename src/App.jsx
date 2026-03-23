@@ -924,6 +924,8 @@ function GameView() {
                 premove={premove}
                 onPromote={completePromotion}
                 onCancelPromotion={cancelPromotion}
+                playerColor={playerColor}
+                gameMode={gameMode}
               />
 
               {/* Reviewing history indicator */}
