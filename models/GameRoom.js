@@ -19,7 +19,7 @@ const gameRoomSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['waiting', 'active', 'completed'],
+    enum: ['waiting', 'active', 'completed', 'aborted'],
     default: 'waiting'
   },
   hostColor: {
@@ -32,6 +32,17 @@ const gameRoomSchema = new mongoose.Schema({
     enum: ['w', 'b'],
     default: 'b'
   },
+  // Time control settings
+  timeControl: {
+    initialTime: { type: Number, default: null }, // seconds, null = unlimited
+    increment: { type: Number, default: 0 },
+    format: { type: String, default: 'unlimited' },
+    label: { type: String, default: 'Unlimited' }
+  },
+  // Server-tracked remaining time (seconds)
+  whiteTime: { type: Number, default: null },
+  blackTime: { type: Number, default: null },
+  lastMoveTimestamp: { type: Date, default: null },
   moves: [{
     moveNumber: Number,
     san: String,
@@ -48,9 +59,29 @@ const gameRoomSchema = new mongoose.Schema({
   },
   result: {
     type: String,
-    enum: ['pending', 'hostWin', 'guestWin', 'draw', 'abandoned'],
+    enum: ['pending', 'hostWin', 'guestWin', 'draw', 'abandoned', 'aborted'],
     default: 'pending'
   },
+  // In-game chat
+  chat: [{
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    name: String,
+    message: String,
+    timestamp: { type: Date, default: Date.now }
+  }],
+  // Draw offer tracking
+  drawOffer: {
+    offeredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    status: { type: String, enum: ['none', 'pending', 'accepted', 'declined'], default: 'none' }
+  },
+  // Takeback request tracking
+  takebackRequest: {
+    requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    status: { type: String, enum: ['none', 'pending', 'accepted', 'declined'], default: 'none' }
+  },
+  // Rematch
+  rematchRoomCode: { type: String, default: null },
+  rematchOfferedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   startTime: {
     type: Date,
     default: Date.now

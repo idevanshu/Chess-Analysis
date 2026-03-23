@@ -1,16 +1,17 @@
 import { useAuth } from './context/AuthContext';
 import { useState, useEffect } from 'react';
-import { Copy, Check, Share2, Users, LogIn } from 'lucide-react';
+import { Copy, Check, Share2, Users, LogIn, Shuffle, Crown } from 'lucide-react';
 
-export default function OnlineMultiplayer({ onGameStart, autoJoinRoomCode }) {
+export default function OnlineMultiplayer({ onGameStart, autoJoinRoomCode, timeControl }) {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [joinCode, setJoinCode] = useState('');
-  const [view, setView] = useState('menu'); // 'menu' | 'join' | 'waiting' | 'done'
+  const [view, setView] = useState('menu'); // 'menu' | 'create' | 'join' | 'waiting' | 'done'
   const [shareUrl, setShareUrl] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [copied, setCopied] = useState(false);
+  const [colorPref, setColorPref] = useState('random'); // 'w' | 'b' | 'random'
 
   // Auto-join from URL
   useEffect(() => {
@@ -23,9 +24,14 @@ export default function OnlineMultiplayer({ onGameStart, autoJoinRoomCode }) {
     setLoading(true);
     setError('');
     try {
+      const body = { colorPreference: colorPref };
+      if (timeControl && timeControl.initialTime) {
+        body.timeControl = timeControl;
+      }
       const res = await fetch('/api/rooms/create', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -104,6 +110,78 @@ export default function OnlineMultiplayer({ onGameStart, autoJoinRoomCode }) {
     );
   }
 
+  // Create game setup — color selection
+  if (view === 'create') {
+    return (
+      <div className="flex flex-col gap-4">
+        <button onClick={() => { setView('menu'); setError(''); }} className="text-xs text-white/40 hover:text-white w-fit">
+          ← Back
+        </button>
+
+        {/* Color preference */}
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-2">Play as</div>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => setColorPref('w')}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all ${
+                colorPref === 'w'
+                  ? 'bg-white/10 border-white/30 ring-1 ring-white/20'
+                  : 'bg-white/5 border-white/10 hover:border-white/20'
+              }`}
+            >
+              <span className="text-2xl">♔</span>
+              <span className="text-[10px] font-bold text-white/70">White</span>
+            </button>
+            <button
+              onClick={() => setColorPref('random')}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all ${
+                colorPref === 'random'
+                  ? 'bg-cyan-500/10 border-cyan-500/30 ring-1 ring-cyan-500/20'
+                  : 'bg-white/5 border-white/10 hover:border-cyan-500/20'
+              }`}
+            >
+              <Shuffle size={24} className="text-cyan-400" />
+              <span className="text-[10px] font-bold text-cyan-400/70">Random</span>
+            </button>
+            <button
+              onClick={() => setColorPref('b')}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all ${
+                colorPref === 'b'
+                  ? 'bg-slate-500/10 border-slate-400/30 ring-1 ring-slate-400/20'
+                  : 'bg-white/5 border-white/10 hover:border-slate-400/20'
+              }`}
+            >
+              <span className="text-2xl">♚</span>
+              <span className="text-[10px] font-bold text-white/70">Black</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Time control display */}
+        {timeControl && (
+          <div className="flex items-center gap-2 p-2.5 bg-white/5 border border-white/10 rounded-lg">
+            <Crown size={14} className="text-amber-400" />
+            <span className="text-xs text-white/60">Time:</span>
+            <span className="text-xs font-bold text-white/90">{timeControl.label}</span>
+          </div>
+        )}
+
+        {/* Create button */}
+        <button
+          onClick={doCreate}
+          disabled={loading}
+          className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          <Share2 size={16} />
+          {loading ? 'Creating...' : 'Create Game & Get Link'}
+        </button>
+
+        {error && <p className="text-red-400 text-xs text-center">{error}</p>}
+      </div>
+    );
+  }
+
   // Join code entry
   if (view === 'join') {
     return (
@@ -140,16 +218,15 @@ export default function OnlineMultiplayer({ onGameStart, autoJoinRoomCode }) {
   return (
     <div className="flex flex-col gap-3">
       <button
-        onClick={doCreate}
-        disabled={loading}
+        onClick={() => setView('create')}
         className="flex items-center gap-3 p-3 border border-white/10 bg-white/5 rounded-xl hover:border-cyan-500/40 hover:bg-cyan-500/10 transition-all text-left group"
       >
         <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform">
           <Share2 size={18} />
         </div>
         <div>
-          <h3 className="font-semibold text-sm text-white/90">{loading ? 'Creating...' : 'Create Game'}</h3>
-          <p className="text-[11px] text-white/50">Get a link to share with a friend</p>
+          <h3 className="font-semibold text-sm text-white/90">Create Game</h3>
+          <p className="text-[11px] text-white/50">Choose color & get a link to share</p>
         </div>
       </button>
 
@@ -162,7 +239,7 @@ export default function OnlineMultiplayer({ onGameStart, autoJoinRoomCode }) {
         </div>
         <div>
           <h3 className="font-semibold text-sm text-white/90">Join Game</h3>
-          <p className="text-[11px] text-white/50">Enter a room code</p>
+          <p className="text-[11px] text-white/50">Enter a room code from a friend</p>
         </div>
       </button>
 

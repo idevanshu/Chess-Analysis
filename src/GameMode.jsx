@@ -127,6 +127,12 @@ export default function GameMode({ onPlayAI, onMultiplayerStart, onLocalStart, a
             <div className="flex-1">
               <OnlineMultiplayer
                 autoJoinRoomCode={autoJoinRoomCode}
+                timeControl={TIME_CONTROLS[selectedTC].initialTime ? {
+                  initialTime: TIME_CONTROLS[selectedTC].initialTime,
+                  increment: TIME_CONTROLS[selectedTC].increment,
+                  label: TIME_CONTROLS[selectedTC].label,
+                  format: TIME_CONTROLS[selectedTC].format
+                } : null}
                 onGameStart={(role, roomCode, data) => {
                   onMultiplayerStart(role, roomCode, data);
                 }}

@@ -8,10 +8,15 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { Chess } from 'chess.js';
 import promClient from 'prom-client';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import User from './models/User.js';
 import Game from './models/Game.js';
 import Performance from './models/Performance.js';
 import GameRoom from './models/GameRoom.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -971,11 +976,18 @@ app.post('/api/chat', async (req, res) => {
 // Create a new game room
 app.post('/api/rooms/create', verifyToken, async (req, res) => {
   try {
+    const { timeControl, colorPreference } = req.body || {};
+
     // Clean up any old waiting/completed rooms by this host first
     await GameRoom.deleteMany({
       host: req.userId,
-      status: { $in: ['waiting', 'completed'] }
+      status: { $in: ['waiting', 'completed', 'aborted'] }
     });
+
+    // Determine host color based on preference
+    let hostColor = 'w';
+    if (colorPreference === 'b') hostColor = 'b';
+    else if (colorPreference === 'random') hostColor = Math.random() < 0.5 ? 'w' : 'b';
 
     // Generate a unique room code (retry if collision)
     let roomCode, saved = false;
@@ -984,11 +996,24 @@ app.post('/api/rooms/create', verifyToken, async (req, res) => {
       // Remove any stale room with this code
       await GameRoom.deleteOne({ roomCode });
       try {
-        const gameRoom = new GameRoom({
+        const roomData = {
           roomCode,
           host: req.userId,
-          hostColor: 'w'
-        });
+          hostColor,
+          guestColor: hostColor === 'w' ? 'b' : 'w',
+        };
+        // Set time control if provided
+        if (timeControl && timeControl.initialTime) {
+          roomData.timeControl = {
+            initialTime: timeControl.initialTime,
+            increment: timeControl.increment || 0,
+            format: timeControl.format || 'rapid',
+            label: timeControl.label || `${Math.floor(timeControl.initialTime / 60)}+${timeControl.increment || 0}`
+          };
+          roomData.whiteTime = timeControl.initialTime;
+          roomData.blackTime = timeControl.initialTime;
+        }
+        const gameRoom = new GameRoom(roomData);
         await gameRoom.save();
         saved = true;
         break;
@@ -1040,15 +1065,16 @@ app.post('/api/rooms/join', verifyToken, async (req, res) => {
       await gameRoom.save();
     }
 
-    const hostUser = await User.findById(gameRoom.host, 'name avatar');
+    const hostUser = await User.findById(gameRoom.host, 'name avatar stats');
 
     res.json({
       roomId: gameRoom._id,
       roomCode,
-      host: { id: gameRoom.host, name: hostUser?.name || 'Host', avatar: hostUser?.avatar || '?' },
+      host: { id: gameRoom.host, name: hostUser?.name || 'Host', avatar: hostUser?.avatar || '?', elo: hostUser?.stats?.eloRating || 1200 },
       hostColor: gameRoom.hostColor,
       guestColor: gameRoom.guestColor,
-      status: gameRoom.status
+      status: gameRoom.status,
+      timeControl: gameRoom.timeControl || null
     });
   } catch (error) {
     console.error('Join room error:', error);
@@ -1192,12 +1218,25 @@ io.on('connection', (socket) => {
     try {
       const room = await GameRoom.findOne({ roomCode });
       if (room) {
+        // Calculate current remaining times if game is active and timed
+        let whiteTime = room.whiteTime;
+        let blackTime = room.blackTime;
+        if (room.status === 'active' && room.lastMoveTimestamp && room.timeControl?.initialTime) {
+          const elapsed = (Date.now() - room.lastMoveTimestamp.getTime()) / 1000;
+          const chess = new Chess(room.currentFen);
+          if (chess.turn() === 'w') whiteTime = Math.max(0, (whiteTime || 0) - elapsed);
+          else blackTime = Math.max(0, (blackTime || 0) - elapsed);
+        }
         socket.emit('gameSync', {
           fen: room.currentFen,
           moves: room.moves.map(m => m.san),
           status: room.status,
           hostColor: room.hostColor,
           guestColor: room.guestColor,
+          timeControl: room.timeControl || null,
+          whiteTime,
+          blackTime,
+          chat: (room.chat || []).map(c => ({ name: c.name, message: c.message, timestamp: c.timestamp })),
         });
       }
     } catch (e) {
@@ -1269,6 +1308,44 @@ io.on('connection', (socket) => {
       }
 
       const newFen = chess.fen();
+      const now = new Date();
+
+      // Update server-tracked time
+      let whiteTime = room.whiteTime;
+      let blackTime = room.blackTime;
+      if (room.timeControl?.initialTime) {
+        if (room.lastMoveTimestamp && room.moves.length > 0) {
+          const elapsed = (now.getTime() - room.lastMoveTimestamp.getTime()) / 1000;
+          if (turnColor === 'w') {
+            whiteTime = Math.max(0, (whiteTime || 0) - elapsed);
+            whiteTime += (room.timeControl.increment || 0);
+          } else {
+            blackTime = Math.max(0, (blackTime || 0) - elapsed);
+            blackTime += (room.timeControl.increment || 0);
+          }
+        }
+        room.whiteTime = whiteTime;
+        room.blackTime = blackTime;
+        room.lastMoveTimestamp = now;
+
+        // Check for timeout
+        if (whiteTime <= 0 || blackTime <= 0) {
+          room.status = 'completed';
+          room.result = whiteTime <= 0
+            ? (room.hostColor === 'w' ? 'guestWin' : 'hostWin')
+            : (room.hostColor === 'b' ? 'guestWin' : 'hostWin');
+          room.endTime = now;
+        }
+      }
+      // First move starts the clock
+      if (room.moves.length === 0 && room.timeControl?.initialTime) {
+        room.lastMoveTimestamp = now;
+      }
+
+      // Clear any pending draw offer on move
+      if (room.drawOffer?.status === 'pending') {
+        room.drawOffer = { offeredBy: null, status: 'none' };
+      }
 
       // Save to DB
       room.moves.push({
@@ -1276,7 +1353,7 @@ io.on('connection', (socket) => {
         san: moveObj.san,
         fen: newFen,
         madeBy: socket.userId,
-        timestamp: new Date()
+        timestamp: now
       });
       room.currentFen = newFen;
 
@@ -1284,11 +1361,11 @@ io.on('connection', (socket) => {
       if (chess.isCheckmate()) {
         room.status = 'completed';
         room.result = playerColor === room.hostColor ? 'hostWin' : 'guestWin';
-        room.endTime = new Date();
+        room.endTime = now;
       } else if (chess.isDraw()) {
         room.status = 'completed';
         room.result = 'draw';
-        room.endTime = new Date();
+        room.endTime = now;
       }
 
       await room.save();
@@ -1299,17 +1376,22 @@ io.on('connection', (socket) => {
       socket.to(roomCode).emit('opponentMove', {
         san: moveObj.san,
         fen: newFen,
-        timestamp: new Date()
+        timestamp: now,
+        whiteTime,
+        blackTime,
       });
 
       // Confirm move to the sender
-      socket.emit('moveConfirmed', { san: moveObj.san, fen: newFen });
+      socket.emit('moveConfirmed', { san: moveObj.san, fen: newFen, whiteTime, blackTime });
 
       // If game ended, notify both players
       if (room.status === 'completed') {
+        const reason = chess.isCheckmate() ? 'checkmate' : (whiteTime <= 0 || blackTime <= 0) ? 'timeout' : 'draw';
         io.to(roomCode).emit('gameEnded', {
           result: room.result,
-          reason: chess.isCheckmate() ? 'checkmate' : 'draw'
+          reason,
+          whiteTime,
+          blackTime,
         });
       }
     } catch (e) {
@@ -1338,6 +1420,216 @@ io.on('connection', (socket) => {
     socket.to(roomCode).emit('gameEnded', { result: 'opponent_resigned' });
   });
 
+  // ── Offer Draw ──
+  socket.on('offerDraw', async (roomCode) => {
+    if (!roomCode || !socket.userId) return;
+    try {
+      const room = await GameRoom.findOne({ roomCode });
+      if (!room || room.status !== 'active') return;
+      const isHost = room.host.toString() === socket.userId;
+      const isGuest = room.guest && room.guest.toString() === socket.userId;
+      if (!isHost && !isGuest) return;
+      // Can't offer draw if one is already pending
+      if (room.drawOffer?.status === 'pending') return;
+      room.drawOffer = { offeredBy: socket.userId, status: 'pending' };
+      await room.save();
+      const user = await User.findById(socket.userId, 'name');
+      socket.to(roomCode).emit('drawOffered', { by: user?.name || 'Opponent' });
+    } catch (e) {
+      console.error('offerDraw error:', e);
+    }
+  });
+
+  // ── Respond to Draw ──
+  socket.on('respondDraw', async ({ roomCode, accept }) => {
+    if (!roomCode || !socket.userId) return;
+    try {
+      const room = await GameRoom.findOne({ roomCode });
+      if (!room || room.status !== 'active' || room.drawOffer?.status !== 'pending') return;
+      // Can't respond to own offer
+      if (room.drawOffer.offeredBy?.toString() === socket.userId) return;
+
+      if (accept) {
+        room.drawOffer.status = 'accepted';
+        room.status = 'completed';
+        room.result = 'draw';
+        room.endTime = new Date();
+        await room.save();
+        io.to(roomCode).emit('gameEnded', { result: 'draw', reason: 'agreement' });
+      } else {
+        room.drawOffer = { offeredBy: null, status: 'none' };
+        await room.save();
+        socket.to(roomCode).emit('drawDeclined');
+      }
+    } catch (e) {
+      console.error('respondDraw error:', e);
+    }
+  });
+
+  // ── Abort Game (< 2 moves) ──
+  socket.on('abortGame', async (roomCode) => {
+    if (!roomCode || !socket.userId) return;
+    try {
+      const room = await GameRoom.findOne({ roomCode });
+      if (!room || room.status !== 'active') return;
+      const isHost = room.host.toString() === socket.userId;
+      const isGuest = room.guest && room.guest.toString() === socket.userId;
+      if (!isHost && !isGuest) return;
+      // Only allow abort if < 2 moves
+      if (room.moves.length >= 2) {
+        socket.emit('abortError', { error: 'Cannot abort after 2 moves. Resign instead.' });
+        return;
+      }
+      room.status = 'aborted';
+      room.result = 'aborted';
+      room.endTime = new Date();
+      await room.save();
+      io.to(roomCode).emit('gameAborted', { message: 'Game aborted' });
+    } catch (e) {
+      console.error('abortGame error:', e);
+    }
+  });
+
+  // ── Chat Message ──
+  socket.on('chatMessage', async ({ roomCode, message }) => {
+    if (!roomCode || !socket.userId || !message?.trim()) return;
+    try {
+      const room = await GameRoom.findOne({ roomCode });
+      if (!room) return;
+      const isHost = room.host.toString() === socket.userId;
+      const isGuest = room.guest && room.guest.toString() === socket.userId;
+      if (!isHost && !isGuest) return;
+      const user = await User.findById(socket.userId, 'name');
+      const chatEntry = {
+        userId: socket.userId,
+        name: user?.name || 'Player',
+        message: message.trim().substring(0, 200), // limit message length
+        timestamp: new Date()
+      };
+      room.chat.push(chatEntry);
+      await room.save();
+      // Broadcast to everyone in room (including sender)
+      io.to(roomCode).emit('chatMessage', chatEntry);
+    } catch (e) {
+      console.error('chatMessage error:', e);
+    }
+  });
+
+  // ── Offer Rematch ──
+  socket.on('offerRematch', async (roomCode) => {
+    if (!roomCode || !socket.userId) return;
+    try {
+      const room = await GameRoom.findOne({ roomCode });
+      if (!room || room.status !== 'completed') return;
+      const isHost = room.host.toString() === socket.userId;
+      const isGuest = room.guest && room.guest.toString() === socket.userId;
+      if (!isHost && !isGuest) return;
+
+      // If rematch already offered by same user, ignore
+      if (room.rematchOfferedBy?.toString() === socket.userId) return;
+
+      // If opponent already offered rematch, auto-accept (create room)
+      if (room.rematchOfferedBy && room.rematchOfferedBy.toString() !== socket.userId) {
+        // Both want rematch — create new room with swapped colors
+        let newRoomCode;
+        for (let i = 0; i < 5; i++) {
+          newRoomCode = GameRoom.schema.statics.generateRoomCode();
+          await GameRoom.deleteOne({ roomCode: newRoomCode });
+          try {
+            const newRoom = new GameRoom({
+              roomCode: newRoomCode,
+              host: room.host,
+              guest: room.guest,
+              hostColor: room.guestColor, // swap colors
+              guestColor: room.hostColor,
+              status: 'active',
+              timeControl: room.timeControl,
+              whiteTime: room.timeControl?.initialTime || null,
+              blackTime: room.timeControl?.initialTime || null,
+            });
+            await newRoom.save();
+            room.rematchRoomCode = newRoomCode;
+            await room.save();
+            io.to(roomCode).emit('rematchCreated', { roomCode: newRoomCode, timeControl: room.timeControl });
+            break;
+          } catch (e) {
+            if (e.code !== 11000) throw e;
+          }
+        }
+        return;
+      }
+
+      // First rematch offer
+      room.rematchOfferedBy = socket.userId;
+      await room.save();
+      const user = await User.findById(socket.userId, 'name');
+      socket.to(roomCode).emit('rematchOffered', { by: user?.name || 'Opponent' });
+    } catch (e) {
+      console.error('offerRematch error:', e);
+    }
+  });
+
+  // ── Decline Rematch ──
+  socket.on('declineRematch', async (roomCode) => {
+    if (!roomCode || !socket.userId) return;
+    try {
+      const room = await GameRoom.findOne({ roomCode });
+      if (!room) return;
+      room.rematchOfferedBy = null;
+      await room.save();
+      socket.to(roomCode).emit('rematchDeclined');
+    } catch (e) {
+      console.error('declineRematch error:', e);
+    }
+  });
+
+  // ── Takeback Request ──
+  socket.on('takebackRequest', async (roomCode) => {
+    if (!roomCode || !socket.userId) return;
+    try {
+      const room = await GameRoom.findOne({ roomCode });
+      if (!room || room.status !== 'active' || room.moves.length === 0) return;
+      const isHost = room.host.toString() === socket.userId;
+      const isGuest = room.guest && room.guest.toString() === socket.userId;
+      if (!isHost && !isGuest) return;
+      if (room.takebackRequest?.status === 'pending') return;
+      room.takebackRequest = { requestedBy: socket.userId, status: 'pending' };
+      await room.save();
+      const user = await User.findById(socket.userId, 'name');
+      socket.to(roomCode).emit('takebackRequested', { by: user?.name || 'Opponent' });
+    } catch (e) {
+      console.error('takebackRequest error:', e);
+    }
+  });
+
+  // ── Respond to Takeback ──
+  socket.on('respondTakeback', async ({ roomCode, accept }) => {
+    if (!roomCode || !socket.userId) return;
+    try {
+      const room = await GameRoom.findOne({ roomCode });
+      if (!room || room.status !== 'active' || room.takebackRequest?.status !== 'pending') return;
+      if (room.takebackRequest.requestedBy?.toString() === socket.userId) return;
+
+      if (accept && room.moves.length > 0) {
+        // Undo the last move
+        room.moves.pop();
+        const lastFen = room.moves.length > 0
+          ? room.moves[room.moves.length - 1].fen
+          : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+        room.currentFen = lastFen;
+        room.takebackRequest = { requestedBy: null, status: 'none' };
+        await room.save();
+        io.to(roomCode).emit('takebackAccepted', { fen: lastFen, moves: room.moves.map(m => m.san) });
+      } else {
+        room.takebackRequest = { requestedBy: null, status: 'none' };
+        await room.save();
+        socket.to(roomCode).emit('takebackDeclined');
+      }
+    } catch (e) {
+      console.error('respondTakeback error:', e);
+    }
+  });
+
   // ── Disconnect ──
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
@@ -1354,6 +1646,15 @@ io.on('connection', (socket) => {
     }
     socketUserMap.delete(socket.id);
   });
+});
+
+// Serve static frontend files (production build)
+const distPath = path.join(__dirname, 'dist');
+app.use(express.static(distPath));
+
+// SPA fallback — serve index.html for all non-API routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
 // Start server

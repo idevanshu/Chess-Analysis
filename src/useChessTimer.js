@@ -96,6 +96,12 @@ export function useChessTimer(timeControl, activeTurn, gameStarted, gameOver) {
     else setBlackTime(t => t + seconds);
   }, []);
 
+  // Sync time from server (for multiplayer)
+  const syncTime = useCallback((wTime, bTime) => {
+    if (wTime !== null && wTime !== undefined) setWhiteTime(wTime);
+    if (bTime !== null && bTime !== undefined) setBlackTime(bTime);
+  }, []);
+
   return {
     whiteTime,
     blackTime,
@@ -103,6 +109,7 @@ export function useChessTimer(timeControl, activeTurn, gameStarted, gameOver) {
     timedOutColor,
     resetTimers,
     addTime,
+    syncTime,
   };
 }
 
