@@ -1260,6 +1260,25 @@ io.on('connection', (socket) => {
         avatar: '?'
       });
     }
+
+    // Notify the joiner if opponent is already in the room
+    // (fixes: guest joining never knew host was already connected)
+    try {
+      const socketsInRoom = await io.in(roomCode).fetchSockets();
+      const otherSockets = socketsInRoom.filter(s => s.id !== socket.id && s.userId);
+      if (otherSockets.length > 0) {
+        const opponentSocket = otherSockets[0];
+        const opponent = await User.findById(opponentSocket.userId, 'name avatar');
+        socket.emit('userJoined', {
+          message: 'Opponent is online',
+          userId: opponentSocket.userId,
+          name: opponent?.name || 'Opponent',
+          avatar: opponent?.avatar || '?'
+        });
+      }
+    } catch (e) {
+      console.error('Error checking room sockets for opponent:', e);
+    }
   });
 
   // ── Make a move (server-validated) ──

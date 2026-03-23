@@ -113,6 +113,9 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
     // Board sync on join/reconnect
     socket.on('gameSync', (data) => {
       console.log('[MP] Game sync:', data);
+      // If game is already active, opponent must be the other player — mark online
+      // (actual disconnect will correct this via opponentDisconnected event)
+      if (data.status === 'active') setOpponentOnline(true);
       if (data.timeControl) setRoomTimeControl(data.timeControl);
       if (data.whiteTime !== undefined) setServerWhiteTime(data.whiteTime);
       if (data.blackTime !== undefined) setServerBlackTime(data.blackTime);
