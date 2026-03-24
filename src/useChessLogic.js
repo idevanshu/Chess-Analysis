@@ -405,9 +405,40 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     }
   };
 
+  // Replay a list of SAN moves from scratch (used for reconnection after reload)
+  const loadGameFromMoves = (sanList) => {
+    const newGame = new Chess();
+    const history = [];
+    const caps = { w: [], b: [] };
+    for (const san of sanList) {
+      try {
+        const moveObj = newGame.move(san);
+        if (moveObj) {
+          history.push(moveObj);
+          if (moveObj.captured) {
+            caps[moveObj.color].push(moveObj.captured);
+          }
+        }
+      } catch (e) {
+        console.error('loadGameFromMoves: invalid move', san, e);
+        break;
+      }
+    }
+    setGame(newGame);
+    setFen(newGame.fen());
+    setMoveHistory(history);
+    setCaptured(caps);
+    setViewingMoveIndex(null);
+    setPendingPromotion(null);
+    setPremove(null);
+    setGameOver(false);
+    setGameResult(null);
+    setIsAiThinking(false);
+  };
+
   return {
     game, fen, moveHistory, gameOver, gameResult, captured, isAiThinking,
-    playerColor, setPlayerColor, handleSquareClick, resetGame, undoMove, hintArrow, resign, forceGameOver, forceGameOverStructured, makeExternalMove,
+    playerColor, setPlayerColor, handleSquareClick, resetGame, undoMove, hintArrow, resign, forceGameOver, forceGameOverStructured, makeExternalMove, loadGameFromMoves,
     viewingGame, viewingMoveIndex, isViewingHistory, goToMove, goBack, goForward, goToStart, goToEnd,
     pendingPromotion, premove, completePromotion, cancelPromotion
   };

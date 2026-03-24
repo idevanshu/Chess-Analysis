@@ -7,6 +7,14 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
   const [opponentOnline, setOpponentOnline] = useState(false);
   const [opponentName, setOpponentName] = useState(null);
 
+  // Keep callback refs up-to-date to avoid stale closures in socket handlers
+  const onOpponentMoveRef = useRef(onOpponentMove);
+  const onGameEndedRef = useRef(onGameEnded);
+  const onSyncRef = useRef(onSync);
+  onOpponentMoveRef.current = onOpponentMove;
+  onGameEndedRef.current = onGameEnded;
+  onSyncRef.current = onSync;
+
   // Chat
   const [chatMessages, setChatMessages] = useState([]);
 
@@ -89,7 +97,7 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
       console.log('[MP] Opponent move:', data);
       if (data.whiteTime !== undefined) setServerWhiteTime(data.whiteTime);
       if (data.blackTime !== undefined) setServerBlackTime(data.blackTime);
-      onOpponentMove(data);
+      onOpponentMoveRef.current(data);
     });
 
     // Our move was confirmed by server
@@ -107,7 +115,7 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
     // Game ended (checkmate, draw, resignation)
     socket.on('gameEnded', (data) => {
       console.log('[MP] Game ended:', data);
-      onGameEnded(data);
+      onGameEndedRef.current(data);
     });
 
     // Board sync on join/reconnect
@@ -120,7 +128,7 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
       if (data.whiteTime !== undefined) setServerWhiteTime(data.whiteTime);
       if (data.blackTime !== undefined) setServerBlackTime(data.blackTime);
       if (data.chat) setChatMessages(data.chat);
-      if (onSync) onSync(data);
+      if (onSyncRef.current) onSyncRef.current(data);
     });
 
     // Opponent reconnected
@@ -149,7 +157,7 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
     socket.on('gameAborted', () => {
       console.log('[MP] Game aborted');
       setGameAborted(true);
-      onGameEnded({ result: 'aborted', reason: 'abort' });
+      onGameEndedRef.current({ result: 'aborted', reason: 'abort' });
     });
 
     socket.on('abortError', (data) => {
@@ -183,7 +191,7 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
       setTakebackSent(false);
       setTakebackRequested(false);
       // Notify parent to replay moves from scratch
-      if (onSync) onSync({ fen: data.fen, moves: data.moves, isTakeback: true });
+      if (onSyncRef.current) onSyncRef.current({ fen: data.fen, moves: data.moves, isTakeback: true });
     });
 
     socket.on('takebackDeclined', () => {

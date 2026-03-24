@@ -18,7 +18,6 @@ export default React.memo(function ChessBoard({
   const selectedRef = useRef(selectedSquare);
   selectedRef.current = selectedSquare;
 
-  // Legal moves for selected piece
   useEffect(() => {
     if (selectedSquare) {
       try {
@@ -29,13 +28,11 @@ export default React.memo(function ChessBoard({
     }
   }, [selectedSquare, game.fen()]);
 
-  // Clear user annotations when position changes
   useEffect(() => {
     setUserArrows([]);
     setHighlightSquares([]);
   }, [game.fen()]);
 
-  // Find king in check
   const inCheck = game.isCheck();
   let checkSquare = null;
   if (inCheck) {
@@ -48,7 +45,6 @@ export default React.memo(function ChessBoard({
       }
   }
 
-  // Get square from viewport coordinates
   const getSquareAt = useCallback((cx, cy) => {
     if (!boardRef.current) return null;
     const r = boardRef.current.getBoundingClientRect();
@@ -58,11 +54,8 @@ export default React.memo(function ChessBoard({
     return getSquareName(col, row, flipped);
   }, [flipped]);
 
-  // ─── Cell mouse down ───
   const onCellDown = useCallback((e, sq) => {
-    // Block board interaction during promotion chooser
     if (pendingPromotion) return;
-
     if (e.button === 2) { arrowStart.current = sq; return; }
     if (e.button !== 0) return;
 
@@ -83,7 +76,6 @@ export default React.memo(function ChessBoard({
     }
   }, [game, pendingPromotion, playerColor, gameMode]);
 
-  // ─── Cell touch start ───
   const onCellTouchStart = useCallback((e, sq) => {
     if (pendingPromotion) return;
     const t = e.touches[0];
@@ -104,7 +96,6 @@ export default React.memo(function ChessBoard({
     }
   }, [game, pendingPromotion, playerColor, gameMode]);
 
-  // ─── Global event listeners ───
   useEffect(() => {
     const onMouseMove = (e) => {
       if (!dragInfo.current.active) return;
@@ -115,7 +106,6 @@ export default React.memo(function ChessBoard({
     };
 
     const onMouseUp = (e) => {
-      // ── Right-click: finish arrow ──
       if (e.button === 2) {
         if (arrowStart.current) {
           try {
@@ -135,15 +125,12 @@ export default React.memo(function ChessBoard({
                 );
               }
             }
-          } catch (err) {
-            // Silently handle any arrow drawing errors
-          }
+          } catch (err) { /* ignore */ }
           arrowStart.current = null;
         }
         return;
       }
 
-      // ── Left-click: finish drag ──
       if (dragInfo.current.active && dragInfo.current.moved) {
         const targetSq = getSquareAt(e.clientX, e.clientY);
         if (targetSq && targetSq !== dragInfo.current.sq) {
@@ -186,11 +173,19 @@ export default React.memo(function ChessBoard({
     };
   }, [getSquareAt]);
 
-  // Ghost piece size
   const cellSize = dragGhost?.moved && boardRef.current
     ? boardRef.current.getBoundingClientRect().width / 8 : 0;
 
-  // ─── Render cells ───
+  // Premium board colors — warm walnut + cream
+  const LIGHT_SQ = '#e8dcc8';
+  const DARK_SQ = '#a67b5b';
+  const SELECTED_SQ = '#7eb86a';
+  const LAST_LIGHT = '#d4c896';
+  const LAST_DARK = '#a68b52';
+  const CHECK_SQ = '#e84040';
+  const HIGHLIGHT_LIGHT = '#e8b830';
+  const HIGHLIGHT_DARK = '#c49828';
+
   const renderCells = () => {
     const cells = [];
     for (let row = 0; row < 8; row++) {
@@ -207,17 +202,17 @@ export default React.memo(function ChessBoard({
         const isDragSource = dragGhost?.moved && dragGhost.sq === sq;
         const isPremove = premove && (sq === premove.from || sq === premove.to);
 
-        let bg;
+        let bgColor;
         if (isInCheck) {
-          bg = 'bg-[#E84040]';
+          bgColor = CHECK_SQ;
         } else if (isHighlighted) {
-          bg = isLight ? 'bg-[#E8A83E]' : 'bg-[#D4922E]';
+          bgColor = isLight ? HIGHLIGHT_LIGHT : HIGHLIGHT_DARK;
         } else if (isSelected) {
-          bg = 'bg-[#D4A746]';
+          bgColor = SELECTED_SQ;
         } else if (isLastMove) {
-          bg = isLight ? 'bg-[#DBC47A]' : 'bg-[#B89A4A]';
+          bgColor = isLight ? LAST_LIGHT : LAST_DARK;
         } else {
-          bg = isLight ? 'bg-[#F0D9B5]' : 'bg-[#B58863]';
+          bgColor = isLight ? LIGHT_SQ : DARK_SQ;
         }
 
         cells.push(
@@ -225,48 +220,42 @@ export default React.memo(function ChessBoard({
             key={sq}
             onMouseDown={(e) => onCellDown(e, sq)}
             onTouchStart={(e) => onCellTouchStart(e, sq)}
-            className={`relative flex items-center justify-center cursor-pointer w-full h-full ${bg} transition-colors duration-150`}
+            className="relative flex items-center justify-center cursor-pointer w-full h-full select-none"
+            style={{ backgroundColor: bgColor }}
           >
             {isInCheck && (
-              <div className="absolute inset-0 shadow-[inset_0_0_12px_rgba(239,68,68,0.7)] pointer-events-none z-[1] rounded-sm" />
+              <div className="absolute inset-0 pointer-events-none z-[1]" style={{ boxShadow: 'inset 0 0 14px rgba(232,64,64,0.7)' }} />
             )}
             {isPremove && (
               <div
                 className="absolute inset-0 pointer-events-none z-[1]"
-                style={{
-                  background: isLight
-                    ? 'rgba(20, 85, 180, 0.41)'
-                    : 'rgba(20, 85, 180, 0.48)',
-                }}
+                style={{ background: isLight ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.38)' }}
               />
             )}
             {isLegal && (
               piece ? (
-                <div className="absolute inset-[3px] rounded-full border-[3px] border-black/20 pointer-events-none z-10" />
+                <div className="absolute inset-[3px] rounded-full border-[3px] pointer-events-none z-10" style={{ borderColor: 'rgba(0,0,0,0.14)' }} />
               ) : (
-                <div className="absolute w-[30%] h-[30%] rounded-full bg-black/15 pointer-events-none z-10" />
+                <div className="absolute w-[28%] h-[28%] rounded-full pointer-events-none z-10" style={{ background: 'rgba(0,0,0,0.14)' }} />
               )
             )}
             {piece && (
               <div
-                className={`w-[82%] h-[82%] z-[2] flex items-center justify-center transition-transform duration-100 ${
-                  isDragSource ? 'opacity-30' : 'hover:scale-110'
-                } cursor-grab active:cursor-grabbing ${isInCheck ? 'animate-pulse' : ''}`}
-                style={{ filter: 'drop-shadow(0px 2px 3px rgba(0,0,0,0.4))' }}
+                className={`w-[85%] h-[85%] z-[2] flex items-center justify-center ${
+                  isDragSource ? 'opacity-30' : ''
+                } cursor-grab active:cursor-grabbing`}
+                style={{ filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.35))' }}
                 dangerouslySetInnerHTML={{ __html: PIECE_SVG[piece.color + piece.type.toUpperCase()] }}
               />
             )}
+            {/* Coordinates */}
             {col === 0 && (
-              <span className={`absolute top-[2px] left-[4px] text-[10px] font-bold pointer-events-none z-[3] select-none ${
-                isLight && !isHighlighted ? 'text-[#B58863]' : 'text-[#F0D9B5]'
-              }`}>
+              <span className="absolute top-[2px] left-[3px] text-[10px] font-bold pointer-events-none z-[3] select-none" style={{ color: isLight ? DARK_SQ : LIGHT_SQ, opacity: 0.7 }}>
                 {flipped ? row + 1 : 8 - row}
               </span>
             )}
             {row === 7 && (
-              <span className={`absolute bottom-[1px] right-[4px] text-[10px] font-bold pointer-events-none z-[3] select-none ${
-                isLight && !isHighlighted ? 'text-[#B58863]' : 'text-[#F0D9B5]'
-              }`}>
+              <span className="absolute bottom-[1px] right-[3px] text-[10px] font-bold pointer-events-none z-[3] select-none" style={{ color: isLight ? DARK_SQ : LIGHT_SQ, opacity: 0.7 }}>
                 {flipped ? 'hgfedcba'[col] : 'abcdefgh'[col]}
               </span>
             )}
@@ -277,7 +266,6 @@ export default React.memo(function ChessBoard({
     return cells;
   };
 
-  // ─── Promotion overlay ───
   const renderPromotionOverlay = () => {
     if (!pendingPromotion || !onPromote || !boardRef.current) return null;
 
@@ -288,12 +276,11 @@ export default React.memo(function ChessBoard({
 
     return (
       <>
-        {/* Dim backdrop */}
         <div
-          className="absolute inset-0 bg-black/40 z-30 cursor-pointer"
+          className="absolute inset-0 z-30 cursor-pointer"
+          style={{ background: 'rgba(0,0,0,0.5)' }}
           onMouseDown={(e) => { e.stopPropagation(); onCancelPromotion?.(); }}
         />
-        {/* Piece choices */}
         {pieces.map((p, i) => {
           const pieceRow = goesDown ? row + i : row - i;
           return (
@@ -307,13 +294,26 @@ export default React.memo(function ChessBoard({
                 width: '12.5%',
                 height: '12.5%',
               }}
-              className="flex items-center justify-center cursor-pointer z-40 bg-white/95 hover:bg-cyan-100 border border-gray-300/50 shadow-lg transition-colors"
+              className="flex items-center justify-center cursor-pointer z-40 transition-all duration-150 hover:scale-110"
             >
               <div
-                className="w-[80%] h-[80%]"
-                style={{ filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.3))' }}
-                dangerouslySetInnerHTML={{ __html: PIECE_SVG[promotionColor + p.toUpperCase()] }}
-              />
+                style={{
+                  width: '85%',
+                  height: '85%',
+                  background: 'linear-gradient(135deg, #f5f0e8, #e8dcc8)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '8px',
+                  filter: 'drop-shadow(0px 4px 8px rgba(0,0,0,0.4))',
+                  border: '1px solid rgba(0,0,0,0.1)',
+                }}
+              >
+                <div
+                  style={{ width: '80%', height: '80%' }}
+                  dangerouslySetInnerHTML={{ __html: PIECE_SVG[promotionColor + p.toUpperCase()] }}
+                />
+              </div>
             </div>
           );
         })}
@@ -323,30 +323,33 @@ export default React.memo(function ChessBoard({
 
   return (
     <div className="relative w-full aspect-square" style={{ touchAction: 'none', WebkitTouchCallout: 'none' }}>
-      {/* Outer wooden frame */}
-      <div className="absolute -inset-[6px] rounded-lg bg-gradient-to-br from-[#6B4F3A] via-[#5A422E] to-[#4A3626] shadow-[0_8px_30px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.1)]" />
+      {/* Board outer frame */}
+      <div className="absolute -inset-[3px] rounded-lg" style={{
+        background: 'linear-gradient(135deg, #3d3529, #2a2520)',
+        border: '1px solid rgba(255,255,255,0.05)',
+        borderRadius: '6px',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
+      }} />
 
-      {/* Board */}
-      <div className="relative rounded-[3px] overflow-hidden z-10" onContextMenu={(e) => e.preventDefault()}>
+      {/* Board grid */}
+      <div className="relative rounded-[2px] overflow-hidden z-10" onContextMenu={(e) => e.preventDefault()}>
         <div ref={boardRef} className="grid grid-cols-8 grid-rows-8 w-full aspect-square select-none">
           {renderCells()}
         </div>
 
-        {/* Promotion overlay */}
         {renderPromotionOverlay()}
 
-        {/* SVG overlay for arrows */}
+        {/* SVG arrows overlay */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none z-20" viewBox="0 0 8 8">
           <defs>
             <marker id="arrowhead-hint" markerWidth="3" markerHeight="4" refX="2" refY="2" orient="auto">
               <polygon points="0 0, 3 2, 0 4" fill="rgba(100,200,100,0.9)"/>
             </marker>
             <marker id="arrowhead-user" markerWidth="3" markerHeight="4" refX="2" refY="2" orient="auto">
-              <polygon points="0 0, 3 2, 0 4" fill="rgba(235,149,50,0.9)"/>
+              <polygon points="0 0, 3 2, 0 4" fill="rgba(212,168,67,0.9)"/>
             </marker>
           </defs>
 
-          {/* User-drawn strategy arrows */}
           {userArrows.map(a => {
             if (!a || !a.from || !a.to) return null;
             const fromC = getSquareCoords(a.from, flipped);
@@ -356,7 +359,7 @@ export default React.memo(function ChessBoard({
                 key={a.key}
                 x1={fromC.col + 0.5} y1={fromC.row + 0.5}
                 x2={toC.col + 0.5} y2={toC.row + 0.5}
-                stroke="rgba(235,149,50,0.85)"
+                stroke="rgba(212,168,67,0.85)"
                 strokeWidth="0.22"
                 markerEnd="url(#arrowhead-user)"
                 strokeLinecap="round"
@@ -364,7 +367,6 @@ export default React.memo(function ChessBoard({
             );
           })}
 
-          {/* Hint arrow */}
           {hintArrow && (() => {
             const fromC = getSquareCoords(hintArrow.from, flipped);
             const toC = getSquareCoords(hintArrow.to, flipped);
