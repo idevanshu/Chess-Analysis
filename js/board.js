@@ -1,5 +1,7 @@
-// Chess Board Renderer
-// Handles SVG piece rendering, drag-and-drop, click-to-move, and visual effects
+/**
+ * Chess Board Renderer
+ * Handles SVG piece rendering, click-to-move, and visual effects
+ */
 
 const PIECE_SVG = {
   // White pieces
@@ -19,6 +21,11 @@ const PIECE_SVG = {
   bP: `<svg viewBox="0 0 45 45" xmlns="http://www.w3.org/2000/svg"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47C28.06 24.84 29 23.03 29 21c0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="#000" stroke="#000" stroke-width="1.5" stroke-linecap="round"/></svg>`,
 };
 
+/**
+ * ChessBoard class - renders and manages the chess board UI
+ * @param {string} containerId - DOM element ID for the board container
+ * @param {ChessApp} app - Reference to the main application instance
+ */
 class ChessBoard {
   constructor(containerId, app) {
     this.container = document.getElementById(containerId);

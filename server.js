@@ -1,3 +1,15 @@
+/**
+ * Chess Legends Backend Server
+ * Express + Socket.IO server for multiplayer chess with analytics
+ * 
+ * Features:
+ * - JWT authentication
+ * - MongoDB database integration
+ * - Real-time multiplayer via Socket.IO
+ * - OpenAI-powered chat commentary
+ * - Prometheus metrics endpoint
+ */
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -43,7 +55,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
 const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-// ===== OPENMETRICS / PROMETHEUS SETUP =====
+// ===== PROMETHEUS METRICS SETUP =====
 const metricsRegister = new promClient.Registry();
 metricsRegister.setDefaultLabels({ app: 'chess-legends' });
 promClient.collectDefaultMetrics({ register: metricsRegister });
@@ -118,7 +130,7 @@ const mongoConnectionState = new promClient.Gauge({
   registers: [metricsRegister],
 });
 
-// ── HTTP metrics middleware (skip /metrics and /health) ──
+// ── HTTP Metrics Middleware (excludes /metrics and /health endpoints) ──
 app.use((req, res, next) => {
   if (req.path === '/metrics' || req.path === '/health' || req.path === '/ready') {
     return next();
@@ -207,9 +219,12 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// ===== AUTH ROUTES =====
+// ===== AUTHENTICATION ROUTES =====
 
-// Signup
+/**
+ * POST /api/auth/signup
+ * Create a new user account
+ */
 app.post('/api/auth/signup', async (req, res) => {
   try {
     const { email, password, passwordConfirm, name } = req.body;
@@ -244,7 +259,10 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
-// Login
+/**
+ * POST /api/auth/login
+ * Authenticate user and return JWT token
+ */
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -278,7 +296,10 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Get user profile - fetch fresh data from DB (no caching)
+/**
+ * GET /api/auth/profile
+ * Fetch authenticated user's profile with fresh data from database
+ */
 app.get('/api/auth/profile', verifyToken, async (req, res) => {
   try {
     // Force fresh read from database, bypass any caching
@@ -308,7 +329,10 @@ app.get('/api/auth/profile', verifyToken, async (req, res) => {
   }
 });
 
-// DEBUG: Check user stats
+/**
+ * GET /api/debug/user-stats
+ * Debug endpoint to check user statistics and raw data
+ */
 app.get('/api/debug/user-stats', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
@@ -333,7 +357,10 @@ app.get('/api/debug/user-stats', verifyToken, async (req, res) => {
 
 // ===== GAME TRACKING ROUTES =====
 
-// Save game
+/**
+ * POST /api/games/save
+ * Save completed game and update user statistics
+ */
 app.post('/api/games/save', verifyToken, async (req, res) => {
   try {
     console.log('=== GAME SAVE ENDPOINT ===');
@@ -596,7 +623,10 @@ app.post('/api/games/save', verifyToken, async (req, res) => {
   }
 });
 
-// Get game history
+/**
+ * GET /api/games/history
+ * Retrieve user's recent game history
+ */
 app.get('/api/games/history', verifyToken, async (req, res) => {
   try {
     const games = await Game.find({ userId: req.userId })
@@ -608,7 +638,10 @@ app.get('/api/games/history', verifyToken, async (req, res) => {
   }
 });
 
-// Get performance stats
+/**
+ * GET /api/stats/performance
+ * Retrieve user's performance analytics
+ */
 app.get('/api/stats/performance', verifyToken, async (req, res) => {
   try {
     const performance = await Performance.findOne({ userId: req.userId });
@@ -621,7 +654,10 @@ app.get('/api/stats/performance', verifyToken, async (req, res) => {
   }
 });
 
-// Get comprehensive analytics from Python service
+/**
+ * GET /api/analytics/comprehensive
+ * Get comprehensive analytics including stats, moves, opponents, and trends
+ */
 app.get('/api/analytics/comprehensive', verifyToken, async (req, res) => {
   try {
     // Fetch all games for this user
@@ -680,7 +716,11 @@ app.get('/api/analytics/comprehensive', verifyToken, async (req, res) => {
   }
 });
 
-// Helper function to process analytics locally
+/**
+ * Process raw game data into structured analytics
+ * @param {Array} games - Array of game documents
+ * @returns {object} - Processed analytics object
+ */
 function processAnalytics(games) {
   console.log('[processAnalytics] Starting analysis of', games.length, 'games');
   
@@ -884,7 +924,11 @@ function processAnalytics(games) {
   };
 }
 
-// Helper function to calculate accuracy
+/**
+ * Calculate game accuracy based on move analysis
+ * @param {Array} moves - Array of moves with accuracy and moveType
+ * @returns {number} - Average accuracy percentage
+ */
 function calculateAccuracy(moves) {
   if (moves.length === 0) return 0;
   
@@ -907,9 +951,13 @@ function calculateAccuracy(moves) {
   return Math.round(totalAccuracy / accuracies.length);
 }
 
-// ===== CHAT WITH OPENAI (GPT-3.5-turbo) =====
+// ===== OPENAI CHAT ENDPOINT =====
 
-// Chat stream endpoint — powered by OpenAI ChatGPT
+/**
+ * POST /api/chat
+ * Stream AI commentary responses via OpenAI ChatGPT
+ * Converts client format to OpenAI format and streams response as SSE
+ */
 app.post('/api/chat', async (req, res) => {
   const llmTimer = llmRequestDuration.startTimer();
   const { messages, systemInstruction } = req.body;
@@ -973,7 +1021,10 @@ app.post('/api/chat', async (req, res) => {
 
 // ===== MULTIPLAYER ROOM ROUTES =====
 
-// Create a new game room
+/**
+ * POST /api/rooms/create
+ * Create a new multiplayer game room and return room code
+ */
 app.post('/api/rooms/create', verifyToken, async (req, res) => {
   try {
     const { timeControl, colorPreference } = req.body || {};
@@ -1033,7 +1084,10 @@ app.post('/api/rooms/create', verifyToken, async (req, res) => {
   }
 });
 
-// Join a game room
+/**
+ * POST /api/rooms/join
+ * Join an existing game room by room code
+ */
 app.post('/api/rooms/join', verifyToken, async (req, res) => {
   try {
     const { roomCode } = req.body;
@@ -1082,7 +1136,10 @@ app.post('/api/rooms/join', verifyToken, async (req, res) => {
   }
 });
 
-// Get room details
+/**
+ * GET /api/rooms/:roomCode
+ * Get details of a specific game room
+ */
 app.get('/api/rooms/:roomCode', verifyToken, async (req, res) => {
   try {
     const { roomCode } = req.params;
@@ -1112,7 +1169,10 @@ app.get('/api/rooms/:roomCode', verifyToken, async (req, res) => {
   }
 });
 
-// Make a move in a room (REST fallback — moves primarily go through Socket.IO now)
+/**
+ * POST /api/rooms/:roomCode/move
+ * Make a move in a room (REST fallback - moves primarily go through Socket.IO)
+ */
 app.post('/api/rooms/:roomCode/move', verifyToken, async (req, res) => {
   try {
     const { roomCode } = req.params;
@@ -1156,7 +1216,10 @@ app.post('/api/rooms/:roomCode/move', verifyToken, async (req, res) => {
   }
 });
 
-// Get user's active rooms
+/**
+ * GET /api/rooms/list/active
+ * Get list of user's active rooms (as host or guest)
+ */
 app.get('/api/rooms/list/active', verifyToken, async (req, res) => {
   try {
     const rooms = await GameRoom.find({
@@ -1178,10 +1241,10 @@ app.get('/api/rooms/list/active', verifyToken, async (req, res) => {
 
 // ===== SOCKET.IO EVENT HANDLERS =====
 
-// Track socket -> { userId, roomCode } mappings for disconnect handling
+// Map socket IDs to user/room information for disconnect handling
 const socketUserMap = new Map();
 
-// Authenticate socket connections via JWT
+// Socket.IO middleware - authenticate connections via JWT
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
   if (!token) {
@@ -1204,7 +1267,10 @@ io.on('connection', (socket) => {
   wsConnectionsActive.inc();
   wsEventsTotal.inc({ event: 'connection' });
 
-  // ── Join a room ──
+  /**
+   * Handle room join request
+   * Syncs game state to joining player and notifies existing players
+   */
   socket.on('joinRoom', async (roomCode) => {
     if (!roomCode) return;
     socket.join(roomCode);
@@ -1281,7 +1347,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ── Make a move (server-validated) ──
+  /**
+   * Handle validated move submission
+   * Server validates move legality, updates room state, broadcasts to opponent
+   */
   socket.on('makeMove', async (data) => {
     const { roomCode, san } = data;
     if (!roomCode || !san) return;
@@ -1419,7 +1488,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ── Resign ──
+  /**
+   * Handle player resignation
+   */
   socket.on('resign', async (roomCode) => {
     if (!roomCode) return;
 
@@ -1439,7 +1510,9 @@ io.on('connection', (socket) => {
     socket.to(roomCode).emit('gameEnded', { result: 'opponent_resigned' });
   });
 
-  // ── Offer Draw ──
+  /**
+   * Handle draw offer submission
+   */
   socket.on('offerDraw', async (roomCode) => {
     if (!roomCode || !socket.userId) return;
     try {
@@ -1459,7 +1532,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ── Respond to Draw ──
+  /**
+   * Handle draw offer response
+   */
   socket.on('respondDraw', async ({ roomCode, accept }) => {
     if (!roomCode || !socket.userId) return;
     try {
@@ -1485,7 +1560,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ── Abort Game (< 2 moves) ──
+  /**
+   * Handle game abort request (only allowed before 2 moves)
+   */
   socket.on('abortGame', async (roomCode) => {
     if (!roomCode || !socket.userId) return;
     try {
@@ -1509,7 +1586,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ── Chat Message ──
+  /**
+   * Handle in-game chat message
+   */
   socket.on('chatMessage', async ({ roomCode, message }) => {
     if (!roomCode || !socket.userId || !message?.trim()) return;
     try {
@@ -1534,7 +1613,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ── Offer Rematch ──
+  /**
+   * Handle rematch offer
+   * Creates new room with swapped colors if both players accept
+   */
   socket.on('offerRematch', async (roomCode) => {
     if (!roomCode || !socket.userId) return;
     try {
@@ -1588,7 +1670,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ── Decline Rematch ──
+  /**
+   * Handle rematch decline
+   */
   socket.on('declineRematch', async (roomCode) => {
     if (!roomCode || !socket.userId) return;
     try {
@@ -1602,7 +1686,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ── Takeback Request ──
+  /**
+   * Handle takeback request
+   */
   socket.on('takebackRequest', async (roomCode) => {
     if (!roomCode || !socket.userId) return;
     try {
@@ -1621,7 +1707,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ── Respond to Takeback ──
+  /**
+   * Handle takeback request response
+   */
   socket.on('respondTakeback', async ({ roomCode, accept }) => {
     if (!roomCode || !socket.userId) return;
     try {
@@ -1649,7 +1737,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ── Disconnect ──
+  /**
+   * Handle client disconnection
+   * Notifies opponent and cleans up socket mappings
+   */
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
     wsConnectionsActive.dec();

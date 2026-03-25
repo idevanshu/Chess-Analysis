@@ -1,3 +1,8 @@
+/**
+ * User Model
+ * Stores user account information, authentication, and game statistics
+ */
+
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 

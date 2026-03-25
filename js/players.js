@@ -1,4 +1,8 @@
-// Player Persona Definitions
+/**
+ * Player Persona Definitions
+ * Configuration for AI opponents with personality, ELO ratings, and AI prompts
+ */
+
 const PLAYERS = {
   magnus: {
     id: 'magnus',
@@ -112,7 +116,10 @@ const PLAYERS = {
 
 const PLAYER_ORDER = ['magnus', 'pragg', 'hikaru', 'kasparov', 'fischer', 'judit'];
 
-// Opening name lookup (ECO codes simplified)
+/**
+ * Opening name lookup by FEN position
+ * Maps standard FEN positions to opening names
+ */
 const OPENING_NAMES = {
   'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR': 'King\'s Pawn Opening',
   'rnbqkbnr/pppppppp/8/8/3PP3/8/PPP2PPP/RNBQKBNR': 'Queen\'s Pawn Opening',

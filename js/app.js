@@ -1,5 +1,7 @@
-// Main Chess Application Logic
-// Manages game state, Stockfish engine, board interaction, and UI
+/**
+ * Chess Application Controller
+ * Manages game state, Stockfish engine, board interaction, and UI updates
+ */
 
 class ChessApp {
   constructor() {

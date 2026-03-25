@@ -1,5 +1,8 @@
-// Live Commentary Integration (via OpenAI ChatGPT through backend)
-// Routes through /api/chat which connects to OpenAI API
+/**
+ * Live Commentary Integration via OpenAI ChatGPT
+ * Handles AI-powered chess commentary with player personas
+ * Routes requests through /api/chat endpoint
+ */
 
 class GeminiLive {
   constructor() {
@@ -12,7 +15,8 @@ class GeminiLive {
   }
 
   setApiKey() {
-    // API key is configured on the backend via OPENAI_API_KEY env var
+    // API key is configured server-side via OPENAI_API_KEY environment variable
+    // Client-side key storage handled separately if needed
   }
 
   setPlayer(player) {

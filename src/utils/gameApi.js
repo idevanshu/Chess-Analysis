@@ -1,4 +1,12 @@
-// Utility to add JWT token to all fetch requests
+/**
+ * Game API Utilities
+ * Helper functions for game-related API calls
+ */
+
+/**
+ * Add JWT token to all fetch requests for authenticated API calls
+ * @param {string} token - JWT authentication token
+ */
 export function enhanceRequestWithAuth(token) {
   const originalFetch = window.fetch;
   
@@ -13,7 +21,12 @@ export function enhanceRequestWithAuth(token) {
   };
 }
 
-// Function to track game after it ends
+/**
+ * Save completed game to the server
+ * @param {string} token - JWT authentication token
+ * @param {object} gameData - Game data to save
+ * @returns {object} - Response from server
+ */
 export async function trackGameEnd(token, gameData) {
   try {
     const response = await fetch('/api/games/save', {

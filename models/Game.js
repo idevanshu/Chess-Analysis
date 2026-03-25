@@ -1,3 +1,8 @@
+/**
+ * Game Model
+ * Stores completed chess game data including moves, analysis, and results
+ */
+
 import mongoose from 'mongoose';
 
 const gameSchema = new mongoose.Schema({

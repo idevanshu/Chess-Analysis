@@ -1,3 +1,8 @@
+/**
+ * GameRoom Model
+ * Manages multiplayer game rooms with real-time state tracking
+ */
+
 import mongoose from 'mongoose';
 
 const gameRoomSchema = new mongoose.Schema({

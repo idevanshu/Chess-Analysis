@@ -1,6 +1,18 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io } from 'socket.io-client';
 
+/**
+ * React hook for multiplayer chess functionality via Socket.IO
+ * Handles real-time game synchronization, moves, chat, and game actions
+ * 
+ * @param {string} roomCode - Unique room identifier
+ * @param {string} userId - Current user identifier
+ * @param {string} token - JWT authentication token
+ * @param {function} onOpponentMove - Callback when opponent makes a move
+ * @param {function} onGameEnded - Callback when game ends
+ * @param {function} onSync - Callback for board synchronization
+ * @returns {object} - Multiplayer state and actions
+ */
 export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEnded, onSync) {
   const socketRef = useRef(null);
   const [connected, setConnected] = useState(false);
@@ -15,30 +27,30 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
   onGameEndedRef.current = onGameEnded;
   onSyncRef.current = onSync;
 
-  // Chat
+  // Chat messages between players
   const [chatMessages, setChatMessages] = useState([]);
 
-  // Draw offer
-  const [drawOffered, setDrawOffered] = useState(false); // opponent offered us a draw
-  const [drawOfferSent, setDrawOfferSent] = useState(false); // we offered a draw
+  // Draw offer state - tracks draw offers between players
+  const [drawOffered, setDrawOffered] = useState(false);
+  const [drawOfferSent, setDrawOfferSent] = useState(false);
 
-  // Rematch
-  const [rematchOffered, setRematchOffered] = useState(false); // opponent offered rematch
-  const [rematchOfferSent, setRematchOfferSent] = useState(false); // we offered rematch
+  // Rematch state - tracks rematch offers and new room creation
+  const [rematchOffered, setRematchOffered] = useState(false);
+  const [rematchOfferSent, setRematchOfferSent] = useState(false);
   const [rematchRoomCode, setRematchRoomCode] = useState(null);
 
-  // Takeback
-  const [takebackRequested, setTakebackRequested] = useState(false); // opponent requested takeback
-  const [takebackSent, setTakebackSent] = useState(false); // we requested takeback
+  // Takeback state - tracks move takeback requests
+  const [takebackRequested, setTakebackRequested] = useState(false);
+  const [takebackSent, setTakebackSent] = useState(false);
 
-  // Abort
+  // Abort state - tracks if game was aborted
   const [gameAborted, setGameAborted] = useState(false);
 
-  // Timer sync from server
+  // Server-synced timer values for multiplayer clock
   const [serverWhiteTime, setServerWhiteTime] = useState(null);
   const [serverBlackTime, setServerBlackTime] = useState(null);
 
-  // Time control from room
+  // Time control configuration from room settings
   const [roomTimeControl, setRoomTimeControl] = useState(null);
 
   useEffect(() => {
@@ -55,7 +67,7 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
     setTakebackSent(false);
     setGameAborted(false);
 
-    // Connect with JWT auth so server can validate identity
+    // Connect to Socket.IO server with JWT authentication
     const socket = io('/', {
       transports: ['websocket', 'polling'],
       auth: { token },
@@ -77,7 +89,7 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
       setConnected(false);
     });
 
-    // Opponent joined the room
+    // Handle opponent joining the room
     socket.on('userJoined', (data) => {
       console.log('[MP] Opponent joined:', data);
       setOpponentOnline(true);
@@ -86,13 +98,13 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
       }
     });
 
-    // Opponent disconnected
+    // Handle opponent disconnection
     socket.on('opponentDisconnected', (data) => {
       console.log('[MP] Opponent disconnected:', data);
       setOpponentOnline(false);
     });
 
-    // Receive validated move from opponent
+    // Handle validated move received from opponent
     socket.on('opponentMove', (data) => {
       console.log('[MP] Opponent move:', data);
       if (data.whiteTime !== undefined) setServerWhiteTime(data.whiteTime);
@@ -100,29 +112,28 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
       onOpponentMoveRef.current(data);
     });
 
-    // Our move was confirmed by server
+    // Handle server confirmation of our move
     socket.on('moveConfirmed', (data) => {
       console.log('[MP] Move confirmed:', data.san);
       if (data.whiteTime !== undefined) setServerWhiteTime(data.whiteTime);
       if (data.blackTime !== undefined) setServerBlackTime(data.blackTime);
     });
 
-    // Move was rejected by server
+    // Handle move rejection by server
     socket.on('moveError', (data) => {
       console.error('[MP] Move error:', data.error);
     });
 
-    // Game ended (checkmate, draw, resignation)
+    // Handle game end events (checkmate, draw, resignation)
     socket.on('gameEnded', (data) => {
       console.log('[MP] Game ended:', data);
       onGameEndedRef.current(data);
     });
 
-    // Board sync on join/reconnect
+    // Handle board synchronization on join or reconnect
     socket.on('gameSync', (data) => {
       console.log('[MP] Game sync:', data);
-      // If game is already active, opponent must be the other player — mark online
-      // (actual disconnect will correct this via opponentDisconnected event)
+      // If game is active, opponent must be online - mark them present
       if (data.status === 'active') setOpponentOnline(true);
       if (data.timeControl) setRoomTimeControl(data.timeControl);
       if (data.whiteTime !== undefined) setServerWhiteTime(data.whiteTime);
@@ -131,61 +142,66 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
       if (onSyncRef.current) onSyncRef.current(data);
     });
 
-    // Opponent reconnected
+    // Handle opponent reconnection
     socket.on('opponentReconnected', (data) => {
       console.log('[MP] Opponent reconnected:', data);
       setOpponentOnline(true);
     });
 
-    // ── Chat ──
+    // Handle incoming chat messages
     socket.on('chatMessage', (data) => {
       setChatMessages(prev => [...prev, data]);
     });
 
-    // ── Draw offer ──
+    // Handle draw offer from opponent
     socket.on('drawOffered', (data) => {
       console.log('[MP] Draw offered by:', data.by);
       setDrawOffered(true);
     });
 
+    // Handle draw offer declined by opponent
     socket.on('drawDeclined', () => {
       console.log('[MP] Draw declined');
       setDrawOfferSent(false);
     });
 
-    // ── Abort ──
+    // Handle game abort event
     socket.on('gameAborted', () => {
       console.log('[MP] Game aborted');
       setGameAborted(true);
       onGameEndedRef.current({ result: 'aborted', reason: 'abort' });
     });
 
+    // Handle abort request error
     socket.on('abortError', (data) => {
       console.error('[MP] Abort error:', data.error);
     });
 
-    // ── Rematch ──
+    // Handle rematch offer from opponent
     socket.on('rematchOffered', (data) => {
       console.log('[MP] Rematch offered by:', data.by);
       setRematchOffered(true);
     });
 
+    // Handle rematch room creation
     socket.on('rematchCreated', (data) => {
       console.log('[MP] Rematch created:', data.roomCode);
       setRematchRoomCode(data.roomCode);
     });
 
+    // Handle rematch declined by opponent
     socket.on('rematchDeclined', () => {
       console.log('[MP] Rematch declined');
       setRematchOfferSent(false);
     });
 
-    // ── Takeback ──
+    // Handle takeback request from opponent
     socket.on('takebackRequested', (data) => {
       console.log('[MP] Takeback requested by:', data.by);
       setTakebackRequested(true);
     });
 
+    // Handle takeback acceptance - sync board state
     socket.on('takebackAccepted', (data) => {
       console.log('[MP] Takeback accepted');
       setTakebackSent(false);
@@ -194,6 +210,7 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
       if (onSyncRef.current) onSyncRef.current({ fen: data.fen, moves: data.moves, isTakeback: true });
     });
 
+    // Handle takeback declined by opponent
     socket.on('takebackDeclined', () => {
       console.log('[MP] Takeback declined');
       setTakebackSent(false);
@@ -206,7 +223,12 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
     };
   }, [roomCode, userId, token]);
 
-  // Send move via socket (server validates before broadcasting)
+  /**
+   * Send move to server for validation and broadcasting
+   * @param {object} move - Move object
+   * @param {string} fen - Current FEN position
+   * @param {string} san - Standard Algebraic Notation of the move
+   */
   const sendMove = useCallback((move, fen, san) => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('makeMove', {
@@ -216,20 +238,28 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
     }
   }, [roomCode]);
 
+  /**
+   * Submit resignation to server
+   */
   const resign = useCallback(() => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('resign', roomCode);
     }
   }, [roomCode]);
 
-  // ── Chat ──
+  /**
+   * Send chat message to opponent
+   * @param {string} message - Message text to send
+   */
   const sendChat = useCallback((message) => {
     if (socketRef.current?.connected && message?.trim()) {
       socketRef.current.emit('chatMessage', { roomCode, message: message.trim() });
     }
   }, [roomCode]);
 
-  // ── Draw ──
+  /**
+   * Offer a draw to the opponent
+   */
   const offerDraw = useCallback(() => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('offerDraw', roomCode);
@@ -237,24 +267,29 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
     }
   }, [roomCode]);
 
+  /**
+   * Respond to opponent's draw offer
+   * @param {boolean} accept - Whether to accept or decline the draw
+   */
   const respondDraw = useCallback((accept) => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('respondDraw', { roomCode, accept });
       setDrawOffered(false);
-      if (accept) {
-        // Game will end via gameEnded event
-      }
     }
   }, [roomCode]);
 
-  // ── Abort ──
+  /**
+   * Request to abort the game (only allowed before 2 moves)
+   */
   const abortGame = useCallback(() => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('abortGame', roomCode);
     }
   }, [roomCode]);
 
-  // ── Rematch ──
+  /**
+   * Offer a rematch to the opponent after game ends
+   */
   const offerRematch = useCallback(() => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('offerRematch', roomCode);
@@ -262,6 +297,9 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
     }
   }, [roomCode]);
 
+  /**
+   * Decline opponent's rematch offer
+   */
   const declineRematch = useCallback(() => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('declineRematch', roomCode);
@@ -269,7 +307,9 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
     }
   }, [roomCode]);
 
-  // ── Takeback ──
+  /**
+   * Request opponent to take back their last move
+   */
   const requestTakeback = useCallback(() => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('takebackRequest', roomCode);
@@ -277,6 +317,10 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
     }
   }, [roomCode]);
 
+  /**
+   * Respond to opponent's takeback request
+   * @param {boolean} accept - Whether to accept or decline the takeback
+   */
   const respondTakeback = useCallback((accept) => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('respondTakeback', { roomCode, accept });
@@ -286,17 +330,17 @@ export function useMultiplayer(roomCode, userId, token, onOpponentMove, onGameEn
 
   return {
     sendMove, resign, connected, opponentOnline, opponentName, setOpponentName,
-    // Chat
+    // Chat functionality
     chatMessages, sendChat,
-    // Draw
+    // Draw offer functionality
     drawOffered, drawOfferSent, offerDraw, respondDraw,
-    // Rematch
+    // Rematch functionality
     rematchOffered, rematchOfferSent, rematchRoomCode, offerRematch, declineRematch,
-    // Takeback
+    // Takeback functionality
     takebackRequested, takebackSent, requestTakeback, respondTakeback,
-    // Abort
+    // Abort functionality
     abortGame, gameAborted,
-    // Timer sync
+    // Timer synchronization
     serverWhiteTime, serverBlackTime, roomTimeControl,
   };
 }

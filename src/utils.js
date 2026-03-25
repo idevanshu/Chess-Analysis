@@ -1,5 +1,8 @@
-// Professional chess piece SVGs — based on the standard Cburnett/Lichess set
-// Each piece uses unique gradient IDs to avoid DOM conflicts when multiple pieces render
+/**
+ * Chess Piece SVG Definitions
+ * Professional SVG pieces based on the Cburnett/Lichess design
+ * Each piece uses unique gradient IDs to avoid DOM conflicts
+ */
 
 export const PIECE_SVG = {
 
@@ -221,11 +224,24 @@ export const PIECE_SVG = {
   </svg>`,
 };
 
+/**
+ * Convert column and row indices to chess notation (e.g., "e4")
+ * @param {number} col - Column index (0-7)
+ * @param {number} row - Row index (0-7)
+ * @param {boolean} flipped - Whether board is flipped
+ * @returns {string} - Square name in algebraic notation
+ */
 export const getSquareName = (col, row, flipped) => {
     const files = 'abcdefgh';
     return flipped ? `${files[7 - col]}${row + 1}` : `${files[col]}${8 - row}`;
 };
 
+/**
+ * Convert chess notation (e.g., "e4") to column and row indices
+ * @param {string} sq - Square name in algebraic notation
+ * @param {boolean} flipped - Whether board is flipped
+ * @returns {object} - {col, row} indices
+ */
 export const getSquareCoords = (sq, flipped) => {
     if (!sq || typeof sq !== 'string' || sq.length < 2) return { col: 0, row: 0 };
     const files = 'abcdefgh';

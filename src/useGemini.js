@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
+/**
+ * System prompt for the chess commentator AI personality
+ * Defines "Gary the Grand Commentator" - an entertaining, dramatic chess commentator
+ */
 const COMMENTATOR_SYSTEM_PROMPT = `You are "Gary the Grand Commentator" — the world's most entertaining, over-the-top chess commentator. Think of a mix between a WWE announcer, a stand-up comedian, and a chess grandmaster who's had way too much coffee.
 
 Your style:
@@ -24,6 +28,11 @@ Rules:
 - Vary your energy — sometimes deadpan, sometimes absolutely unhinged.
 - Reference the specific pieces and squares involved when possible.`;
 
+/**
+ * React hook for Gemini AI-powered chess commentary
+ * @param {object} currentPlayer - Current player persona configuration
+ * @returns {object} - Chat state and methods for AI commentary
+ */
 export function useGemini(currentPlayer) {
   const [messages, setMessages] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);

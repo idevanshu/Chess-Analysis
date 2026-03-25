@@ -1,5 +1,8 @@
-// Stockfish Web Worker
-// Loads stockfish.js from CDN and communicates via UCI protocol
+/**
+ * Stockfish Web Worker Wrapper
+ * Loads Stockfish chess engine from CDN and communicates via UCI protocol
+ * Provides an interface between the main application and the chess engine
+ */
 
 let stockfish = null;
 let isReady = false;

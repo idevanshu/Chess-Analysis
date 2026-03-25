@@ -1,3 +1,8 @@
+/**
+ * Performance Model
+ * Tracks detailed user performance analytics and statistics
+ */
+
 import mongoose from 'mongoose';
 
 const performanceSchema = new mongoose.Schema({
