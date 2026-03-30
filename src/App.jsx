@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { io } from 'socket.io-client';
 import ChessBoard from './ChessBoard';
 import { useChessLogic } from './useChessLogic';
 import { useChessSound } from './useChessSound';
@@ -11,7 +12,8 @@ import AuthPage from './AuthPage';
 import Dashboard from './DashboardNew';
 import GameMode from './GameMode';
 import GameAnalysis, { EvalBar } from './GameAnalysis';
-import { ChevronDown, Settings, MessageSquare, Plus, BarChart3, LogOut, Copy, Check, Undo2, Clock, ArrowLeft, User, Swords, Wifi, WifiOff, Volume2, VolumeX, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw, Flag, MessageCircle, Handshake, X, Send, RefreshCw, Crown, Sparkles } from 'lucide-react';
+import AdminPanel from './AdminPanel';
+import { ChevronDown, Settings, MessageSquare, Plus, BarChart3, LogOut, Copy, Check, Undo2, Clock, ArrowLeft, User, Swords, Wifi, WifiOff, Volume2, VolumeX, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw, Flag, MessageCircle, Handshake, X, Send, RefreshCw, Crown, Sparkles, Shield } from 'lucide-react';
 
 function ChessClock({ whiteTime, blackTime, activeTurn, gameStarted, gameOver, playerColor, timeControl }) {
   const isFlipped = playerColor === 'b';
@@ -122,7 +124,7 @@ function getSavedMpSession() {
   return null;
 }
 
-function GameView() {
+function GameView({ onAdminClick }) {
   const { user, logout, token } = useAuth();
   const savedSession = useRef(getSavedMpSession()).current;
   const [showDashboard, setShowDashboard] = useState(false);
@@ -149,6 +151,32 @@ function GameView() {
   const isReplayingRef = useRef(false);
 
   const currentPlayer = PLAYERS[activePlayerId];
+
+  // Presence socket — reports game mode to server for admin live tracking
+  const presenceSocketRef = useRef(null);
+  useEffect(() => {
+    if (!token || !user?.id) return;
+    const socket = io('/', { auth: { token } });
+    presenceSocketRef.current = socket;
+    return () => { socket.disconnect(); presenceSocketRef.current = null; };
+  }, [token, user?.id]);
+
+  useEffect(() => {
+    const socket = presenceSocketRef.current;
+    if (!socket) return;
+    const emitPresence = () => {
+      socket.emit('setPresence', {
+        mode: gameMode || 'idle',
+        userName: user?.name,
+        opponent: gameMode === 'ai' ? currentPlayer?.name : undefined,
+      });
+    };
+    if (socket.connected) {
+      emitPresence();
+    } else {
+      socket.once('connect', emitPresence);
+    }
+  }, [gameMode, currentPlayer?.name, user?.name]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -575,6 +603,18 @@ function GameView() {
             <BarChart3 className="w-3.5 h-3.5" style={{ color: 'var(--gold)' }} />
             <span className="hidden sm:inline">Stats</span>
           </button>
+
+          {onAdminClick && (
+            <button
+              onClick={onAdminClick}
+              className="btn btn-sm"
+              title="Admin Panel"
+              style={{ color: '#dc2626' }}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Admin</span>
+            </button>
+          )}
 
           <button
             onClick={() => { logout(); setGameMode(null); setMultiplayerRoomCode(null); }}
@@ -1100,6 +1140,7 @@ function GameView() {
 
 function App() {
   const { user, loading } = useAuth();
+  const [showAdmin, setShowAdmin] = useState(false);
 
   if (loading) {
     return (
@@ -1121,7 +1162,11 @@ function App() {
     );
   }
 
-  return user ? <GameView /> : <AuthPage />;
+  if (!user) return <AuthPage />;
+  if (user.isAdmin && showAdmin) {
+    return <AdminPanel onExitAdmin={() => setShowAdmin(false)} />;
+  }
+  return <GameView onAdminClick={user.isAdmin ? () => setShowAdmin(true) : null} />;
 }
 
 export default App;

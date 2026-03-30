@@ -60,6 +60,8 @@ const userSchema = new mongoose.Schema({
     tacticalAccuracy: { type: Number, default: 0, min: 0, max: 100 }
   },
 
+  isAdmin: { type: Boolean, default: false },
+
   currentWinStreak: { type: Number, default: 0, min: 0 },
   bestWinStreak: { type: Number, default: 0, min: 0 },
   currentLossStreak: { type: Number, default: 0, min: 0 },

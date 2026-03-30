@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
-import OpenAI from 'openai';
+import OpenAI from 'openai'; // using openai client for Ollama compatibility
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { Chess } from 'chess.js';
@@ -38,8 +38,11 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/chess-leg
 app.use(cors());
 app.use(express.json());
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
+const openai = new OpenAI({
+  apiKey: process.env.OLLAMA_API_KEY || 'ollama',
+  baseURL: process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1',
+});
+const OPENAI_MODEL = process.env.OLLAMA_MODEL || 'llama3.2:1b';
 const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 const metricsRegister = new promClient.Registry();
@@ -145,8 +148,9 @@ app.get('/health', async (req, res) => {
         status: 'up',
         connections: io.engine?.clientsCount || 0,
       },
-      openai: {
-        status: process.env.OPENAI_API_KEY ? 'configured' : 'missing_api_key',
+      ollama: {
+        status: 'configured',
+        baseURL: process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1',
         model: OPENAI_MODEL,
       },
     },
@@ -215,13 +219,15 @@ app.post('/api/auth/signup', async (req, res) => {
 
     const token = jwt.sign({ id: user._id }, jwtSecret, { expiresIn: '7d' });
     authAttemptsTotal.inc({ type: 'signup', result: 'success' });
+    const signupIsAdmin = user.isAdmin || (process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL);
     res.status(201).json({
       token,
       user: {
         id: user._id,
         email: user.email,
         name: user.name,
-        stats: user.stats
+        stats: user.stats,
+        isAdmin: !!signupIsAdmin,
       }
     });
   } catch (error) {
@@ -247,13 +253,15 @@ app.post('/api/auth/login', async (req, res) => {
 
     const token = jwt.sign({ id: user._id }, jwtSecret, { expiresIn: '7d' });
     authAttemptsTotal.inc({ type: 'login', result: 'success' });
+    const loginIsAdmin = user.isAdmin || (process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL);
     res.json({
       token,
       user: {
         id: user._id,
         email: user.email,
         name: user.name,
-        stats: user.stats
+        stats: user.stats,
+        isAdmin: !!loginIsAdmin,
       }
     });
   } catch (error) {
@@ -267,6 +275,7 @@ app.get('/api/auth/profile', verifyToken, async (req, res) => {
     const user = await User.findById(req.userId).lean();
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    const isAdmin = user.isAdmin || (process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL);
     res.json({
       user: {
         id: user._id,
@@ -275,7 +284,8 @@ app.get('/api/auth/profile', verifyToken, async (req, res) => {
         avatar: user.avatar,
         stats: user.stats,
         moveAnalysis: user.moveAnalysis,
-        createdAt: user.createdAt
+        createdAt: user.createdAt,
+        isAdmin: !!isAdmin,
       }
     });
   } catch (error) {
@@ -790,7 +800,7 @@ app.post('/api/chat', async (req, res) => {
       messages: openaiMessages,
       stream: true,
       temperature: 1.0,
-      max_completion_tokens: 2048,
+      max_tokens: 256,
     });
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -1007,7 +1017,144 @@ app.get('/api/rooms/list/active', verifyToken, async (req, res) => {
   }
 });
 
+// ── Admin helpers & middleware ────────────────────────────────────────────────
+
 const socketUserMap = new Map();
+const aiGameSessions = new Map();   // socketId -> { userId, userName, opponent, startedAt }
+const presenceSessions = new Map(); // socketId -> { userId, userName, mode, updatedAt }
+
+function broadcastAdminEvent(type, data) {
+  io.to('admin_room').emit('adminEvent', { type, data, timestamp: new Date().toISOString() });
+}
+
+const verifyAdmin = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'No token provided' });
+    const decoded = jwt.verify(token, jwtSecret);
+    const user = await User.findById(decoded.id).lean();
+    if (!user) return res.status(401).json({ error: 'User not found' });
+    const isAdmin = user.isAdmin || (process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL);
+    if (!isAdmin) return res.status(403).json({ error: 'Admin access required' });
+    req.userId = String(decoded.id);
+    req.adminUser = user;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
+// ── Admin API ─────────────────────────────────────────────────────────────────
+
+app.get('/api/admin/stats', verifyAdmin, async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const activeUsers = await User.countDocuments({
+      lastLogin: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+    });
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const gamesToday = await Game.countDocuments({ gameDate: { $gte: todayStart } });
+    const totalGames = await Game.countDocuments();
+
+    const activeRoomDocs = await GameRoom.find({ status: { $in: ['active', 'waiting'] } })
+      .populate('host', 'name stats')
+      .populate('guest', 'name stats')
+      .lean();
+
+    const aiGames = Array.from(aiGameSessions.values());
+
+    res.json({
+      live: {
+        onlineUsers: io.engine?.clientsCount || 0,
+        aiGamesActive: aiGameSessions.size,
+        multiplayerGamesActive: activeRoomDocs.filter(r => r.status === 'active').length,
+        waitingRooms: activeRoomDocs.filter(r => r.status === 'waiting').length,
+      },
+      platform: { totalUsers, activeUsers, totalGames, gamesToday },
+      activeRooms: activeRoomDocs.map(r => ({
+        roomCode: r.roomCode,
+        status: r.status,
+        host: { name: r.host?.name, elo: r.host?.stats?.eloRating },
+        guest: r.guest ? { name: r.guest?.name, elo: r.guest?.stats?.eloRating } : null,
+        moves: r.moves?.length || 0,
+        timeControl: r.timeControl?.label || null,
+      })),
+      aiGames,
+      uptime: Math.floor(process.uptime()),
+      memory: {
+        rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+      },
+      mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+      ollama: {
+        model: OPENAI_MODEL,
+        baseURL: process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1',
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/admin/users', verifyAdmin, async (req, res) => {
+  try {
+    const { search = '', page = 1, limit = 15 } = req.query;
+    const query = search
+      ? { $or: [{ name: { $regex: search, $options: 'i' } }, { email: { $regex: search, $options: 'i' } }] }
+      : {};
+    const total = await User.countDocuments(query);
+    const users = await User.find(query)
+      .select('name email avatar stats accountStatus isAdmin createdAt lastLogin')
+      .sort({ createdAt: -1 })
+      .skip((Number(page) - 1) * Number(limit))
+      .limit(Number(limit))
+      .lean();
+    // Mark env-based admins
+    const users2 = users.map(u => ({
+      ...u,
+      isAdmin: u.isAdmin || (process.env.ADMIN_EMAIL && u.email === process.env.ADMIN_EMAIL) || false,
+    }));
+    res.json({ users: users2, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/users/:id/status', verifyAdmin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['active', 'suspended'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    if (req.params.id === req.userId) {
+      return res.status(400).json({ error: 'Cannot modify your own account' });
+    }
+    const user = await User.findByIdAndUpdate(
+      req.params.id, { accountStatus: status }, { new: true }
+    ).select('name email accountStatus');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    broadcastAdminEvent('userStatusChanged', { userId: req.params.id, name: user.name, status });
+    res.json({ user });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/admin/games/recent', verifyAdmin, async (req, res) => {
+  try {
+    const games = await Game.find()
+      .sort({ gameDate: -1 })
+      .limit(30)
+      .populate('userId', 'name avatar')
+      .lean();
+    res.json({ games });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
@@ -1028,6 +1175,44 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   wsConnectionsActive.inc();
   wsEventsTotal.inc({ event: 'connection' });
+
+  // Admin room join — verify admin before subscribing
+  socket.on('adminJoin', async () => {
+    if (!socket.userId) return;
+    try {
+      const user = await User.findById(socket.userId).lean();
+      if (!user) return;
+      const isAdmin = user.isAdmin || (process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL);
+      if (isAdmin) socket.join('admin_room');
+    } catch (e) {}
+  });
+
+  // Presence reporting (all authenticated users)
+  socket.on('setPresence', ({ mode, userName, opponent } = {}) => {
+    if (!socket.userId) return;
+    const prev = presenceSessions.get(socket.id);
+
+    // Handle AI game session tracking
+    if (mode === 'ai' && prev?.mode !== 'ai') {
+      aiGameSessions.set(socket.id, {
+        userId: socket.userId,
+        userName: userName || 'Unknown',
+        opponent: opponent || 'Stockfish',
+        startedAt: new Date().toISOString(),
+      });
+      broadcastAdminEvent('aiGameStarted', { userName: userName || 'Unknown', opponent: opponent || 'Stockfish' });
+    } else if (mode !== 'ai' && prev?.mode === 'ai') {
+      aiGameSessions.delete(socket.id);
+      broadcastAdminEvent('aiGameEnded', { userName: userName || prev?.userName || 'Unknown' });
+    }
+
+    presenceSessions.set(socket.id, {
+      userId: socket.userId,
+      userName: userName || 'Unknown',
+      mode: mode || 'idle',
+      updatedAt: new Date().toISOString(),
+    });
+  });
 
   socket.on('joinRoom', async (roomCode) => {
     if (!roomCode) return;
@@ -1425,6 +1610,14 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     wsConnectionsActive.dec();
     wsEventsTotal.inc({ event: 'disconnect' });
+
+    // Clean up AI session if active
+    if (aiGameSessions.has(socket.id)) {
+      const session = aiGameSessions.get(socket.id);
+      aiGameSessions.delete(socket.id);
+      broadcastAdminEvent('aiGameEnded', { userName: session.userName });
+    }
+    presenceSessions.delete(socket.id);
 
     const info = socketUserMap.get(socket.id);
     if (info?.roomCode) {
