@@ -9,7 +9,6 @@ export default function RoomCreation({ onRoomCreated }) {
   const [copied, setCopied] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
 
-  // Check if user is logged in
   const isLoggedIn = !!token && !!user;
 
   const createRoom = async () => {
@@ -35,8 +34,7 @@ export default function RoomCreation({ onRoomCreated }) {
       } else {
         alert('Failed to create room: ' + (data.error || 'Unknown error'));
       }
-    } catch (error) {
-      console.error('Error creating room:', error);
+    } catch {
       alert('Error creating room');
     } finally {
       setLoading(false);

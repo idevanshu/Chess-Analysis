@@ -1,12 +1,5 @@
-/**
- * Chess Piece SVG Definitions
- * Professional SVG pieces based on the Cburnett/Lichess design
- * Each piece uses unique gradient IDs to avoid DOM conflicts
- */
-
 export const PIECE_SVG = {
 
-  // ===================== WHITE KING =====================
   wK: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">
     <defs>
       <linearGradient id="wK_f" x1="0" y1="0" x2="0" y2="1">
@@ -24,7 +17,6 @@ export const PIECE_SVG = {
     </g>
   </svg>`,
 
-  // ===================== WHITE QUEEN =====================
   wQ: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">
     <defs>
       <linearGradient id="wQ_f" x1="0" y1="0" x2="0" y2="1">
@@ -45,7 +37,6 @@ export const PIECE_SVG = {
     </g>
   </svg>`,
 
-  // ===================== WHITE ROOK =====================
   wR: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">
     <defs>
       <linearGradient id="wR_f" x1="0" y1="0" x2="0" y2="1">
@@ -67,7 +58,6 @@ export const PIECE_SVG = {
     </g>
   </svg>`,
 
-  // ===================== WHITE BISHOP =====================
   wB: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">
     <defs>
       <linearGradient id="wB_f" x1="0" y1="0" x2="0" y2="1">
@@ -86,7 +76,6 @@ export const PIECE_SVG = {
     </g>
   </svg>`,
 
-  // ===================== WHITE KNIGHT =====================
   wN: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">
     <defs>
       <linearGradient id="wN_f" x1="0" y1="0" x2="0" y2="1">
@@ -102,7 +91,6 @@ export const PIECE_SVG = {
     </g>
   </svg>`,
 
-  // ===================== WHITE PAWN =====================
   wP: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">
     <defs>
       <linearGradient id="wP_f" x1="0" y1="0" x2="0" y2="1">
@@ -113,7 +101,6 @@ export const PIECE_SVG = {
     <path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03C15.41 27.09 11 31.58 11 39.5h23c0-7.92-4.41-12.41-7.41-13.47C28.06 24.84 29 23.03 29 21c0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="url(#wP_f)" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
   </svg>`,
 
-  // ===================== BLACK KING =====================
   bK: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">
     <defs>
       <linearGradient id="bK_f" x1="0" y1="0" x2="0" y2="1">
@@ -131,7 +118,6 @@ export const PIECE_SVG = {
     </g>
   </svg>`,
 
-  // ===================== BLACK QUEEN =====================
   bQ: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">
     <defs>
       <linearGradient id="bQ_f" x1="0" y1="0" x2="0" y2="1">
@@ -158,7 +144,6 @@ export const PIECE_SVG = {
     </g>
   </svg>`,
 
-  // ===================== BLACK ROOK =====================
   bR: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">
     <defs>
       <linearGradient id="bR_f" x1="0" y1="0" x2="0" y2="1">
@@ -177,7 +162,6 @@ export const PIECE_SVG = {
     </g>
   </svg>`,
 
-  // ===================== BLACK BISHOP =====================
   bB: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">
     <defs>
       <linearGradient id="bB_f" x1="0" y1="0" x2="0" y2="1">
@@ -196,7 +180,6 @@ export const PIECE_SVG = {
     </g>
   </svg>`,
 
-  // ===================== BLACK KNIGHT =====================
   bN: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">
     <defs>
       <linearGradient id="bN_f" x1="0" y1="0" x2="0" y2="1">
@@ -212,7 +195,6 @@ export const PIECE_SVG = {
     </g>
   </svg>`,
 
-  // ===================== BLACK PAWN =====================
   bP: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">
     <defs>
       <linearGradient id="bP_f" x1="0" y1="0" x2="0" y2="1">
@@ -224,24 +206,11 @@ export const PIECE_SVG = {
   </svg>`,
 };
 
-/**
- * Convert column and row indices to chess notation (e.g., "e4")
- * @param {number} col - Column index (0-7)
- * @param {number} row - Row index (0-7)
- * @param {boolean} flipped - Whether board is flipped
- * @returns {string} - Square name in algebraic notation
- */
 export const getSquareName = (col, row, flipped) => {
     const files = 'abcdefgh';
     return flipped ? `${files[7 - col]}${row + 1}` : `${files[col]}${8 - row}`;
 };
 
-/**
- * Convert chess notation (e.g., "e4") to column and row indices
- * @param {string} sq - Square name in algebraic notation
- * @param {boolean} flipped - Whether board is flipped
- * @returns {object} - {col, row} indices
- */
 export const getSquareCoords = (sq, flipped) => {
     if (!sq || typeof sq !== 'string' || sq.length < 2) return { col: 0, row: 0 };
     const files = 'abcdefgh';

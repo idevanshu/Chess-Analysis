@@ -18,7 +18,6 @@ function noiseBuffer(ctx, sec) {
   return buf;
 }
 
-// Wood-like click (piece placement on board)
 function woodClick(ctx, vol = 0.4) {
   const t = ctx.currentTime;
   const src = ctx.createBufferSource();
@@ -35,7 +34,6 @@ function woodClick(ctx, vol = 0.4) {
   src.stop(t + 0.06);
 }
 
-// Heavier thud for captures
 function captureThud(ctx) {
   const t = ctx.currentTime;
   const s1 = ctx.createBufferSource();
@@ -47,7 +45,6 @@ function captureThud(ctx) {
   g1.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
   s1.connect(f1).connect(g1).connect(ctx.destination);
   s1.start(t); s1.stop(t + 0.1);
-  // Higher overtone
   const s2 = ctx.createBufferSource();
   s2.buffer = noiseBuffer(ctx, 0.04);
   const f2 = ctx.createBiquadFilter();
@@ -59,7 +56,6 @@ function captureThud(ctx) {
   s2.start(t); s2.stop(t + 0.05);
 }
 
-// Alert tone for check
 function checkTone(ctx) {
   const t = ctx.currentTime;
   const o = ctx.createOscillator();
@@ -73,7 +69,6 @@ function checkTone(ctx) {
   o.start(t); o.stop(t + 0.15);
 }
 
-// Major chord for game end
 function gameEndChord(ctx) {
   const t = ctx.currentTime;
   [523.25, 659.25, 783.99].forEach(f => {
@@ -88,7 +83,6 @@ function gameEndChord(ctx) {
   });
 }
 
-// Ascending tone for promotion
 function promoteTone(ctx) {
   const t = ctx.currentTime;
   const o = ctx.createOscillator();

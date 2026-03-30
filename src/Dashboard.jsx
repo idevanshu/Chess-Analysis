@@ -15,12 +15,10 @@ export default function Dashboard() {
     if (token) {
       fetchDashboardData();
       
-      // Auto-refresh stats every 3 seconds to catch updated game stats
       const interval = setInterval(() => {
         fetchDashboardData();
       }, 3000);
 
-      // Also refresh when tab becomes visible (user returning to dashboard)
       const handleVisibilityChange = () => {
         if (!document.hidden) {
           fetchDashboardData();
@@ -39,47 +37,30 @@ export default function Dashboard() {
   const fetchDashboardData = async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
-      console.log('Fetching dashboard data... Token present:', !!token);
-      
+
       const [profileRes, gamesRes, statsRes] = await Promise.all([
         fetch('/api/auth/profile', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/games/history', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/stats/performance', { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
-      console.log('API responses:', {
-        profile: profileRes.status,
-        games: gamesRes.status,
-        performance: statsRes.status
-      });
-
       if (profileRes.ok) {
         const data = await profileRes.json();
-        console.log('Profile data received:', data.user?.stats);
         setStats(data.user);
-      } else {
-        const error = await profileRes.json();
-        console.error('Profile fetch failed:', error);
       }
 
       if (gamesRes.ok) {
         const games = await gamesRes.json();
-        console.log('Games received:', games.length, 'games');
         setGames(games);
-      } else {
-        console.error('Games fetch failed with status:', gamesRes.status);
       }
 
       if (statsRes.ok) {
         const perf = await statsRes.json();
-        console.log('Performance data received:', perf);
         setPerformance(perf);
       } else {
-        console.log('Performance data not available (status:', statsRes.status, ')');
         setPerformance(null);
       }
-    } catch (error) {
-      console.error('Dashboard fetch error:', error);
+    } catch {
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -109,7 +90,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      {/* Header */}
       <header className="border-b border-white/10 bg-black/40 backdrop-blur-xl sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">

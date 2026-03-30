@@ -8,7 +8,6 @@ export const PLAYERS = {
     style: 'Universal genius \u00B7 Endgame mastery',
     avatar: 'M',
     color: '#00d4ff',
-    // Stockfish config — highest difficulty, deep search, long think time
     engineElo: 2850,
     engineDepth: 22,
     engineMoveTime: 3000,

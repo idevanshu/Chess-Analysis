@@ -246,7 +246,6 @@ function HistoryAnalysisModal({ game, onClose }) {
   );
 }
 
-// ═══════════════ MAIN DASHBOARD ═══════════════
 export default function DashboardNew() {
   const { user, token } = useAuth();
   const [analytics, setAnalytics] = useState(null);
@@ -275,7 +274,7 @@ export default function DashboardNew() {
       ]);
       if (aRes.ok) setAnalytics(await aRes.json());
       if (gRes.ok) setGames((await gRes.json()) || []);
-    } catch (e) { console.error('Dashboard fetch error:', e); }
+    } catch {}
     finally { setLoading(false); setRefreshing(false); }
   };
 
@@ -380,7 +379,6 @@ export default function DashboardNew() {
           ))}
         </div>
 
-        {/* ═══ OVERVIEW ═══ */}
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-slideUp">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -478,7 +476,6 @@ export default function DashboardNew() {
           </div>
         )}
 
-        {/* ═══ OPPONENTS ═══ */}
         {activeTab === 'opponents' && (
           <div className="animate-slideUp">
             {sortedOpponents.length === 0 ? (
@@ -491,7 +488,6 @@ export default function DashboardNew() {
           </div>
         )}
 
-        {/* ═══ MOVES ═══ */}
         {activeTab === 'moves' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 animate-slideUp">
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.015] p-5">
@@ -538,7 +534,6 @@ export default function DashboardNew() {
           </div>
         )}
 
-        {/* ═══ TRENDS ═══ */}
         {activeTab === 'trends' && (
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.015] p-5 animate-slideUp">
             <h3 className="text-sm font-black text-white/80 mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Accuracy Trend</h3>
@@ -564,7 +559,6 @@ export default function DashboardNew() {
           </div>
         )}
 
-        {/* ═══ HISTORY ═══ */}
         {activeTab === 'history' && (<>
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.015] overflow-hidden animate-slideUp">
             <div className="px-5 py-3.5 border-b border-white/[0.04] flex items-center gap-2">

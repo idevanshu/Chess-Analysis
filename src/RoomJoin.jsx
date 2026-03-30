@@ -8,7 +8,6 @@ export default function RoomJoin({ onRoomJoined }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Check if user is logged in
   const isLoggedIn = !!token && !!user;
 
   const joinRoom = async (e) => {
@@ -38,8 +37,7 @@ export default function RoomJoin({ onRoomJoined }) {
       } else {
         setError(data.error || 'Failed to join room');
       }
-    } catch (error) {
-      console.error('Error joining room:', error);
+    } catch {
       setError('Network error while joining room');
     } finally {
       setLoading(false);

@@ -1,8 +1,3 @@
-/**
- * Performance Model
- * Tracks detailed user performance analytics and statistics
- */
-
 import mongoose from 'mongoose';
 
 const performanceSchema = new mongoose.Schema({
@@ -13,8 +8,7 @@ const performanceSchema = new mongoose.Schema({
     unique: true,
     index: true
   },
-  
-  // Overall statistics
+
   overallStats: {
     totalGamesAnalyzed: { type: Number, default: 0 },
     averageAccuracy: { type: Number, default: 0, min: 0, max: 100 },
@@ -30,10 +24,9 @@ const performanceSchema = new mongoose.Schema({
       date: Date
     }
   },
-  
-  // Monthly breakdown
+
   monthlyStats: [{
-    month: { type: Date, required: true }, // First day of month
+    month: { type: Date, required: true },
     year: { type: Number, required: true },
     gamesPlayed: { type: Number, default: 0, min: 0 },
     wins: { type: Number, default: 0, min: 0 },
@@ -46,8 +39,7 @@ const performanceSchema = new mongoose.Schema({
     bestWin: String,
     worstLoss: String
   }],
-  
-  // Performance by opponent
+
   performanceByOpponent: {
     type: Map,
     of: {
@@ -62,16 +54,14 @@ const performanceSchema = new mongoose.Schema({
     },
     default: new Map()
   },
-  
-  // Move type distribution
+
   moveTypeDistribution: {
     blunders: { type: Number, default: 0, min: 0 },
     tactical: { type: Number, default: 0, min: 0 },
     strategic: { type: Number, default: 0, min: 0 },
     best: { type: Number, default: 0, min: 0 }
   },
-  
-  // Opening statistics
+
   openingStats: [{
     name: { type: String, required: true },
     eco: String,
@@ -84,32 +74,28 @@ const performanceSchema = new mongoose.Schema({
     avgAccuracy: { type: Number, default: 0, min: 0, max: 100 },
     avgElo: { type: Number, default: 0 }
   }],
-  
-  // Time-based statistics
+
   timeStats: {
-    avgMoveTime: { type: Number, default: 0, min: 0 }, // in ms
+    avgMoveTime: { type: Number, default: 0, min: 0 },
     fastestMove: { type: Number, default: 0, min: 0 },
     slowestMove: { type: Number, default: 0, min: 0 },
-    totalTimePlayed: { type: Number, default: 0, min: 0 }, // in seconds
+    totalTimePlayed: { type: Number, default: 0, min: 0 },
     totalGamesTimedOut: { type: Number, default: 0, min: 0 }
   },
-  
-  // Win streaks and loss streaks
+
   streaks: {
     currentWinStreak: { type: Number, default: 0, min: 0 },
     bestWinStreak: { type: Number, default: 0, min: 0 },
     currentLossStreak: { type: Number, default: 0, min: 0 },
     bestLossStreak: { type: Number, default: 0, min: 0 }
   },
-  
-  // Trends over last N games
+
   trends: {
-    accuracyTrend: [{ type: Number, min: 0, max: 100 }], // Last 10 games
-    eloTrend: [Number], // Last 10 games
-    winRateTrend: [{ type: Number, min: 0, max: 100 }] // Last 10 games
+    accuracyTrend: [{ type: Number, min: 0, max: 100 }],
+    eloTrend: [Number],
+    winRateTrend: [{ type: Number, min: 0, max: 100 }]
   },
-  
-  // Color-specific statistics
+
   colorStats: {
     asWhite: {
       games: { type: Number, default: 0, min: 0 },
@@ -128,8 +114,7 @@ const performanceSchema = new mongoose.Schema({
       avgAccuracy: { type: Number, default: 0, min: 0, max: 100 }
     }
   },
-  
-  // Difficulty-specific statistics
+
   difficultyStats: {
     easy: {
       games: { type: Number, default: 0, min: 0 },
@@ -152,20 +137,17 @@ const performanceSchema = new mongoose.Schema({
       avgAccuracy: { type: Number, default: 0, min: 0, max: 100 }
     }
   },
-  
-  // Last updated timestamp
+
   lastUpdated: {
     type: Date,
     default: Date.now
   }
-  
+
 }, { timestamps: true });
 
-// Indexes for common queries
 performanceSchema.index({ userId: 1 });
 performanceSchema.index({ 'monthlyStats.month': -1 });
 
-// Pre-save hook to update timestamp
 performanceSchema.pre('save', function(next) {
   this.lastUpdated = new Date();
   next();

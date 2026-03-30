@@ -31,8 +31,7 @@ export function AuthProvider({ children }) {
         setToken(null);
         localStorage.removeItem('token');
       }
-    } catch (error) {
-      console.error('Profile fetch error:', error);
+    } catch {
     } finally {
       setLoading(false);
     }

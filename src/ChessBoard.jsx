@@ -176,7 +176,6 @@ export default React.memo(function ChessBoard({
   const cellSize = dragGhost?.moved && boardRef.current
     ? boardRef.current.getBoundingClientRect().width / 8 : 0;
 
-  // Premium board colors — warm walnut + cream
   const LIGHT_SQ = '#e8dcc8';
   const DARK_SQ = '#a67b5b';
   const SELECTED_SQ = '#7eb86a';
@@ -248,7 +247,6 @@ export default React.memo(function ChessBoard({
                 dangerouslySetInnerHTML={{ __html: PIECE_SVG[piece.color + piece.type.toUpperCase()] }}
               />
             )}
-            {/* Coordinates */}
             {col === 0 && (
               <span className="absolute top-[2px] left-[3px] text-[10px] font-bold pointer-events-none z-[3] select-none" style={{ color: isLight ? DARK_SQ : LIGHT_SQ, opacity: 0.7 }}>
                 {flipped ? row + 1 : 8 - row}
@@ -323,7 +321,6 @@ export default React.memo(function ChessBoard({
 
   return (
     <div className="relative w-full aspect-square" style={{ touchAction: 'none', WebkitTouchCallout: 'none' }}>
-      {/* Board outer frame */}
       <div className="absolute -inset-[3px] rounded-lg" style={{
         background: 'linear-gradient(135deg, #3d3529, #2a2520)',
         border: '1px solid rgba(255,255,255,0.05)',
@@ -331,7 +328,6 @@ export default React.memo(function ChessBoard({
         boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
       }} />
 
-      {/* Board grid */}
       <div className="relative rounded-[2px] overflow-hidden z-10" onContextMenu={(e) => e.preventDefault()}>
         <div ref={boardRef} className="grid grid-cols-8 grid-rows-8 w-full aspect-square select-none">
           {renderCells()}
@@ -339,7 +335,6 @@ export default React.memo(function ChessBoard({
 
         {renderPromotionOverlay()}
 
-        {/* SVG arrows overlay */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none z-20" viewBox="0 0 8 8">
           <defs>
             <marker id="arrowhead-hint" markerWidth="3" markerHeight="4" refX="2" refY="2" orient="auto">
@@ -384,7 +379,6 @@ export default React.memo(function ChessBoard({
         </svg>
       </div>
 
-      {/* Ghost piece during drag */}
       {dragGhost?.moved && cellSize > 0 && (
         <div
           className="fixed pointer-events-none z-[100]"

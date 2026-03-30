@@ -1,9 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-/**
- * System prompt for the chess commentator AI personality
- * Defines "Gary the Grand Commentator" - an entertaining, dramatic chess commentator
- */
 const COMMENTATOR_SYSTEM_PROMPT = `You are "Gary the Grand Commentator" — the world's most entertaining, over-the-top chess commentator. Think of a mix between a WWE announcer, a stand-up comedian, and a chess grandmaster who's had way too much coffee.
 
 Your style:
@@ -28,31 +24,30 @@ Rules:
 - Vary your energy — sometimes deadpan, sometimes absolutely unhinged.
 - Reference the specific pieces and squares involved when possible.`;
 
-/**
- * React hook for Gemini AI-powered chess commentary
- * @param {object} currentPlayer - Current player persona configuration
- * @returns {object} - Chat state and methods for AI commentary
- */
 export function useGemini(currentPlayer) {
   const [messages, setMessages] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isConnected, setIsConnected] = useState(true);
   const streamingRef = useRef(false);
+  const messagesRef = useRef(messages);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     setMessages([]);
   }, [currentPlayer, isConnected]);
 
-  const addMessage = (text, isUser = false) => {
+  const addMessage = useCallback((text, isUser = false) => {
     setMessages((prev) => [...prev, { role: isUser ? 'user' : 'model', parts: [{ text }] }]);
-  };
+  }, []);
 
   const saveApiKey = () => {
-    // API key is configured on the backend via OPENAI_API_KEY env var
     setIsConnected(true);
   };
 
-  const sendMessageStream = async (text, fenContext = null, triggerBySystem = false) => {
+  const sendMessageStream = useCallback(async (text, fenContext = null, triggerBySystem = false) => {
     if (!isConnected) return;
     if (streamingRef.current) return;
 
@@ -68,7 +63,7 @@ export function useGemini(currentPlayer) {
       contextMsg = `[Current position FEN: ${fenContext}]\n\n${text}`;
     }
 
-    const payloadMessages = [...messages, { role: 'user', parts: [{ text: contextMsg }] }];
+    const payloadMessages = [...messagesRef.current, { role: 'user', parts: [{ text: contextMsg }] }];
 
     try {
       const response = await fetch('/api/chat', {
@@ -118,7 +113,6 @@ export function useGemini(currentPlayer) {
                   });
                 }
               } catch (e) {
-                console.error("SSE parse error:", e, data);
               }
             }
           }
@@ -137,26 +131,22 @@ export function useGemini(currentPlayer) {
       setIsStreaming(false);
       streamingRef.current = false;
     }
-  };
+  }, [isConnected, addMessage]);
 
   const announceMatch = useCallback(async (playerName, playerElo, playerColorLabel, fen) => {
-    if (!isConnected) return;
     const prompt = `The match is about to begin! The player is playing as ${playerColorLabel} against ${playerName} (ELO ${playerElo}). Give an absolutely electric, over-the-top match introduction like a boxing ring announcer crossed with a chess commentator. Hype up the opponent's reputation. This is the opening of the broadcast.`;
     await sendMessageStream(prompt, fen, true);
-  }, [isConnected]);
+  }, [sendMessageStream]);
 
   const getAutoCommentary = useCallback(async (fen, moveNumber, lastMove, extraContext = '') => {
-    if (!isConnected) return;
-
     const prompt = `Move ${moveNumber}: ${lastMove} was just played. ${extraContext} Give your live commentary reaction. Remember — punchy, hilarious, and dramatic.`;
     await sendMessageStream(prompt, fen, true);
-  }, [isConnected]);
+  }, [sendMessageStream]);
 
   const commentOnGameOver = useCallback(async (result, fen, totalMoves) => {
-    if (!isConnected) return;
     const prompt = `THE GAME IS OVER after ${totalMoves} moves! Result: ${result}. Give your dramatic sign-off commentary for this match. Make it memorable — this is your closing broadcast moment.`;
     await sendMessageStream(prompt, fen, true);
-  }, [isConnected]);
+  }, [sendMessageStream]);
 
   return {
     messages, isStreaming, isConnected, saveApiKey,

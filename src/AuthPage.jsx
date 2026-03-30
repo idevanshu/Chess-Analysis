@@ -42,20 +42,16 @@ export default function AuthPage({ mode = 'login', onSuccess }) {
 
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--bg-primary)' }}>
-      {/* ═══ Left: Hero Panel ═══ */}
       <div className="hidden lg:flex flex-1 relative overflow-hidden items-center justify-center">
-        {/* Gradient mesh background */}
         <div className="absolute inset-0" style={{
           background: 'radial-gradient(ellipse at 30% 20%, rgba(16, 185, 129, 0.08) 0%, transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(212, 168, 67, 0.06) 0%, transparent 50%)',
         }} />
 
-        {/* Grid pattern */}
         <div className="absolute inset-0 opacity-[0.03]" style={{
           backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
           backgroundSize: '60px 60px',
         }} />
 
-        {/* Large chess piece */}
         <div className="relative z-10 text-center">
           <div className="relative inline-block">
             <div className="text-[180px] leading-none opacity-10 select-none" style={{ color: 'var(--accent)' }}>♞</div>
@@ -86,7 +82,6 @@ export default function AuthPage({ mode = 'login', onSuccess }) {
             Play against legendary AI opponents, challenge friends online, and track your improvement with advanced analytics.
           </p>
 
-          {/* Feature pills */}
           <div className="flex flex-wrap justify-center gap-2 mt-8">
             {['Stockfish 18', 'Real-time Multiplayer', 'Game Analysis', 'AI Commentary'].map((f, i) => (
               <span
@@ -105,7 +100,6 @@ export default function AuthPage({ mode = 'login', onSuccess }) {
           </div>
         </div>
 
-        {/* Floating orbs */}
         <div className="absolute top-[15%] right-[15%] w-80 h-80 rounded-full pointer-events-none" style={{
           background: 'radial-gradient(circle, rgba(16, 185, 129, 0.06) 0%, transparent 70%)',
           filter: 'blur(40px)',
@@ -118,15 +112,12 @@ export default function AuthPage({ mode = 'login', onSuccess }) {
         }} />
       </div>
 
-      {/* ═══ Right: Auth Form ═══ */}
       <div className="flex-1 lg:max-w-[520px] flex items-center justify-center px-6 relative">
-        {/* Subtle gradient backdrop */}
         <div className="absolute inset-0 lg:hidden" style={{
           background: 'radial-gradient(ellipse at 50% 0%, rgba(16, 185, 129, 0.05) 0%, transparent 60%)',
         }} />
 
         <div className="w-full max-w-sm relative z-10 animate-slideUp">
-          {/* Logo */}
           <div className="text-center mb-10">
             <div className="inline-flex items-center gap-3 mb-4">
               <div
@@ -149,7 +140,6 @@ export default function AuthPage({ mode = 'login', onSuccess }) {
             </p>
           </div>
 
-          {/* Auth Card */}
           <div
             className="p-8 rounded-2xl"
             style={{
@@ -266,7 +256,6 @@ export default function AuthPage({ mode = 'login', onSuccess }) {
             </div>
           </div>
 
-          {/* Footer */}
           <p className="text-center mt-8 text-[11px] tracking-wide" style={{ color: 'var(--text-dim)' }}>
             Powered by Stockfish 18 & AI Commentary
           </p>

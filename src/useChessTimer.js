@@ -1,13 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-/**
- * Chess timer hook — manages countdown clocks for both players.
- * @param {object} timeControl - { initialTime: seconds, increment: seconds } or null for unlimited
- * @param {string} activeTurn - 'w' or 'b' — whose clock is running
- * @param {boolean} gameStarted - true once first move is made
- * @param {boolean} gameOver - true when game ends
- * @returns {{ whiteTime, blackTime, isTimedOut, timedOutColor, resetTimers, formatTime }}
- */
 export function useChessTimer(timeControl, activeTurn, gameStarted, gameOver) {
   const [whiteTime, setWhiteTime] = useState(timeControl?.initialTime ?? 0);
   const [blackTime, setBlackTime] = useState(timeControl?.initialTime ?? 0);
@@ -15,7 +7,6 @@ export function useChessTimer(timeControl, activeTurn, gameStarted, gameOver) {
   const intervalRef = useRef(null);
   const lastTickRef = useRef(null);
 
-  // Reset when time control changes
   useEffect(() => {
     if (timeControl) {
       setWhiteTime(timeControl.initialTime);
@@ -24,12 +15,11 @@ export function useChessTimer(timeControl, activeTurn, gameStarted, gameOver) {
     }
   }, [timeControl?.initialTime, timeControl?.increment]);
 
-  // Apply increment after a move (when activeTurn changes and game is ongoing)
   const prevTurnRef = useRef(activeTurn);
   useEffect(() => {
     if (!timeControl || !gameStarted || gameOver || timedOutColor) return;
     if (prevTurnRef.current !== activeTurn && timeControl.increment > 0) {
-      // The player who just moved (prevTurn) gets the increment
+      // Increment goes to the player who just moved
       const justMoved = prevTurnRef.current;
       if (justMoved === 'w') {
         setWhiteTime(t => t + timeControl.increment);
@@ -40,7 +30,6 @@ export function useChessTimer(timeControl, activeTurn, gameStarted, gameOver) {
     prevTurnRef.current = activeTurn;
   }, [activeTurn, gameStarted, gameOver, timeControl, timedOutColor]);
 
-  // Run the countdown
   useEffect(() => {
     if (!timeControl || !gameStarted || gameOver || timedOutColor) {
       clearInterval(intervalRef.current);
@@ -90,13 +79,11 @@ export function useChessTimer(timeControl, activeTurn, gameStarted, gameOver) {
     setTimedOutColor(null);
   }, [timeControl]);
 
-  // Add time back when undoing a move (external call)
   const addTime = useCallback((color, seconds) => {
     if (color === 'w') setWhiteTime(t => t + seconds);
     else setBlackTime(t => t + seconds);
   }, []);
 
-  // Sync time from server (for multiplayer)
   const syncTime = useCallback((wTime, bTime) => {
     if (wTime !== null && wTime !== undefined) setWhiteTime(wTime);
     if (bTime !== null && bTime !== undefined) setBlackTime(bTime);
@@ -113,7 +100,6 @@ export function useChessTimer(timeControl, activeTurn, gameStarted, gameOver) {
   };
 }
 
-/** Format seconds into mm:ss or h:mm:ss */
 export function formatTime(totalSeconds) {
   if (totalSeconds == null || totalSeconds < 0) totalSeconds = 0;
   const h = Math.floor(totalSeconds / 3600);
@@ -121,8 +107,8 @@ export function formatTime(totalSeconds) {
   const s = Math.floor(totalSeconds % 60);
   const tenths = Math.floor((totalSeconds % 1) * 10);
 
+  // Show tenths when under 10s for precision
   if (totalSeconds < 10) {
-    // Show tenths when under 10 seconds
     return `${m}:${s.toString().padStart(2, '0')}.${tenths}`;
   }
   if (h > 0) {

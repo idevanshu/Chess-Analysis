@@ -13,7 +13,6 @@ import GameMode from './GameMode';
 import GameAnalysis, { EvalBar } from './GameAnalysis';
 import { ChevronDown, Settings, MessageSquare, Plus, BarChart3, LogOut, Copy, Check, Undo2, Clock, ArrowLeft, User, Swords, Wifi, WifiOff, Volume2, VolumeX, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw, Flag, MessageCircle, Handshake, X, Send, RefreshCw, Crown, Sparkles } from 'lucide-react';
 
-// ═══════════════ CHESS CLOCK (Desktop) ═══════════════
 function ChessClock({ whiteTime, blackTime, activeTurn, gameStarted, gameOver, playerColor, timeControl }) {
   const isFlipped = playerColor === 'b';
   const topColor = isFlipped ? 'w' : 'b';
@@ -81,7 +80,6 @@ function ClockFace({ time, isActive, label }) {
   );
 }
 
-// ═══════════════ MOBILE CLOCK ═══════════════
 function MobileClockFace({ time, isActive, label, piece }) {
   const isLow = time < 30;
   const isCritical = time < 10;
@@ -113,7 +111,6 @@ function MobileClockFace({ time, isActive, label, piece }) {
   );
 }
 
-// Read saved multiplayer session synchronously
 function getSavedMpSession() {
   try {
     const saved = sessionStorage.getItem('chess_mp_session');
@@ -125,11 +122,7 @@ function getSavedMpSession() {
   return null;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//                      GAME VIEW
-// ═══════════════════════════════════════════════════════════════
 function GameView() {
-  console.log('GameView rendering...');
   const { user, logout, token } = useAuth();
   const savedSession = useRef(getSavedMpSession()).current;
   const [showDashboard, setShowDashboard] = useState(false);
@@ -190,17 +183,14 @@ function GameView() {
   const { messages, isStreaming, isConnected, sendMessageStream, getAutoCommentary, announceMatch, commentOnGameOver } = useGemini(currentPlayer);
 
   const handleOpponentMove = useCallback((data) => {
-    console.log('Opponent move:', data);
     if (data.san) makeExternalMove(data.san);
   }, [makeExternalMove]);
 
   const handleGameEnded = useCallback((data) => {
-    console.log('Game ended:', data);
     try { sessionStorage.removeItem('chess_mp_session'); } catch (e) { /* ignore */ }
     if (data.result === 'opponent_resigned') {
       forceGameOverStructured({ type: 'opponent_resigned', winnerColor: playerColor });
     } else if (data.result === 'aborted' || data.reason === 'abort') {
-      // handled via mpGameAborted
     } else if (data.reason === 'agreement') {
       forceGameOverStructured({ type: 'draw' });
     } else if (data.reason === 'timeout') {
@@ -213,12 +203,10 @@ function GameView() {
   }, [forceGameOverStructured, playerColor]);
 
   const handleGameSync = useCallback((data) => {
-    console.log('Game sync received:', data);
     if (data.hostColor && gameMode === 'multiplayer_host') setPlayerColor(data.hostColor);
     else if (data.guestColor && gameMode === 'multiplayer_guest') setPlayerColor(data.guestColor);
     if (data.timeControl?.initialTime && !timeControl) setTimeControl(data.timeControl);
     if (data.moves && data.moves.length > 0 && moveHistory.length === 0 && !data.isTakeback) {
-      console.log('[MP] Replaying', data.moves.length, 'moves from server');
       isReplayingRef.current = true;
       loadGameFromMoves(data.moves);
       setTimeout(() => { isReplayingRef.current = false; }, 0);
@@ -320,7 +308,7 @@ function GameView() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(gameData)
-      }).then(res => res.ok ? res.json() : null).catch(err => console.error('Game save error:', err));
+      }).then(res => res.ok ? res.json() : null).catch(() => {});
     }
   }, [gameOver, gameResult, token]);
 
@@ -474,10 +462,8 @@ function GameView() {
   const displayGame = viewingGame || game;
   const lastMoveObj = isViewingHistory ? (viewingMoveIndex >= 0 ? moveHistory[viewingMoveIndex] : null) : moveHistory[moveHistory.length - 1];
 
-  // ═══════════════════════════════ RENDER ═══════════════════════════════
   return (
     <div style={{ '--player-color': currentPlayer.color }} className="flex flex-col min-h-screen">
-      {/* ═══════════ PREMIUM HEADER ═══════════ */}
       <header
         className="relative z-50 h-[52px] px-4 flex items-center justify-between shrink-0"
         style={{
@@ -486,7 +472,6 @@ function GameView() {
           backdropFilter: 'blur(12px)',
         }}
       >
-        {/* Left cluster */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg" style={{
@@ -521,7 +506,6 @@ function GameView() {
             </div>
           )}
 
-          {/* AI opponent selector */}
           <div className="relative">
             {gameMode === 'ai' && (
               <button onClick={() => setShowPlayerDropdown(!showPlayerDropdown)} className="btn btn-sm gap-2">
@@ -606,16 +590,12 @@ function GameView() {
         </div>
       </header>
 
-      {/* ═══════════ MAIN CONTENT ═══════════ */}
       <main className="relative z-10 w-full flex-1 flex flex-col lg:flex-row overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
-        {/* Subtle gradient backdrop */}
         <div className="absolute inset-0 pointer-events-none" style={{
           background: 'radial-gradient(ellipse at 30% 30%, rgba(16, 185, 129, 0.02) 0%, transparent 60%)',
         }} />
 
-        {/* ═══ LEFT: BOARD AREA ═══ */}
         <div className="flex-1 flex flex-col items-center justify-center p-3 sm:p-4 lg:p-5 min-w-0 overflow-y-auto relative z-10">
-          {/* Action bar */}
           <div className="flex flex-wrap items-center justify-center gap-1.5 mb-3 shrink-0">
             {gameMode === 'ai' ? (
               <>
@@ -753,7 +733,6 @@ function GameView() {
                 </div>
               )}
 
-              {/* ═══ GAME OVER OVERLAY ═══ */}
               {gameOver && !mpGameAborted && !showAnalysis && (() => {
                 const rd = getResultDisplay();
                 const isWin = gameResult?.winnerColor === playerColor;
@@ -823,7 +802,6 @@ function GameView() {
           )}
         </div>
 
-        {/* ═══ RIGHT: SIDE PANEL ═══ */}
         <div
           className="w-full lg:w-[320px] xl:w-[350px] shrink-0 flex flex-col gap-2 p-2 sm:p-3 overflow-y-auto lg:h-[calc(100vh-52px)]"
           style={{
@@ -1120,9 +1098,6 @@ function GameView() {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-//                        APP ROOT
-// ═══════════════════════════════════════════════════════════════
 function App() {
   const { user, loading } = useAuth();
 

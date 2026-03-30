@@ -12,12 +12,11 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [playerColor, setPlayerColor] = useState('w');
   const [hintArrow, setHintArrow] = useState(null);
-  const [viewingMoveIndex, setViewingMoveIndex] = useState(null); // null = live, -1 = start, 0+ = after that move
-  const [pendingPromotion, setPendingPromotion] = useState(null); // { from, to }
-  const [premove, setPremove] = useState(null); // { from, to }
+  const [viewingMoveIndex, setViewingMoveIndex] = useState(null);
+  const [pendingPromotion, setPendingPromotion] = useState(null);
+  const [premove, setPremove] = useState(null);
   const { isReady: stockfishReady, getBestMove } = useStockfish();
 
-  // --- Move history navigation (analysis mode) ---
   const isViewingHistory = viewingMoveIndex !== null;
 
   const viewingGame = useMemo(() => {
@@ -58,7 +57,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
 
   const goToEnd = () => setViewingMoveIndex(null);
 
-  // Convert Stockfish UCI move (e.g. "e2e4") to chess.js move object
   const applyUciMove = (uciMove) => {
     const from = uciMove.slice(0, 2);
     const to = uciMove.slice(2, 4);
@@ -80,7 +78,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
 
     const currentFen = game.fen();
 
-    // Engine config from player's world ranking
     const engineConfig = {
       elo: currentPlayer?.engineElo || currentPlayer?.elo || 2000,
       depth: currentPlayer?.engineDepth || 18,
@@ -88,7 +85,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     };
 
     try {
-      // Use Stockfish engine for the AI move with ELO-based strength
       const bestUci = stockfishReady
         ? await getBestMove(currentFen, engineConfig)
         : null;
@@ -99,7 +95,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
         moveObj = applyUciMove(bestUci);
       }
 
-      // Fallback: pick a random legal move if Stockfish fails
       if (!moveObj) {
         const fallback = moves[Math.floor(Math.random() * moves.length)];
         moveObj = game.move(fallback.san);
@@ -122,7 +117,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
         setIsAiThinking(false);
       }
     } catch (e) {
-      console.error('AI Move error:', e);
       setIsAiThinking(false);
     }
   };
@@ -140,7 +134,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
       }
     }
 
-    // Fallback: random legal move
     const moves = game.moves({ verbose: true });
     if (moves.length > 0) {
       const move = moves[Math.floor(Math.random() * moves.length)];
@@ -156,14 +149,12 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     }
   }, [hintsEnabled, fen]);
 
-  // Trigger AI's first move when player switches to black
   useEffect(() => {
     if (gameMode === 'ai' && playerColor === 'b' && moveHistory.length === 0 && !gameOver && stockfishReady) {
       getAIMove();
     }
   }, [playerColor, stockfishReady]);
 
-  // Execute premove when it becomes the player's turn
   useEffect(() => {
     if (!premove || gameOver || gameMode === 'local') return;
     if (game.turn() !== playerColor) return;
@@ -173,7 +164,8 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
       const targetMove = moves.find(m => m.to === premove.to);
       if (targetMove) {
         const moveOptions = { from: premove.from, to: premove.to };
-        if (targetMove.promotion) moveOptions.promotion = 'q'; // premoves auto-queen
+        // Premoves always auto-queen
+        if (targetMove.promotion) moveOptions.promotion = 'q';
         const move = game.move(moveOptions);
         if (move) {
           setPremove(null);
@@ -182,7 +174,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
         }
       }
     } catch (e) {
-      // premove was invalid
     }
     setPremove(null);
   }, [fen]);
@@ -192,7 +183,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     const currentTurnColor = game.turn();
     if (gameOver) return null;
 
-    // Cancel pending promotion on any board click
     if (pendingPromotion) {
       setPendingPromotion(null);
       return null;
@@ -200,20 +190,16 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
 
     const isPlayerTurn = isLocal || currentTurnColor === playerColor;
 
-    // --- Premove mode (not player's turn, non-local) ---
     if (!isPlayerTurn) {
       if (selectedSquare) {
-        // If clicking own piece, re-select it
         const clickedPiece = game.get(square);
         if (clickedPiece && clickedPiece.color === playerColor) {
           setPremove(null);
           return square;
         }
-        // Set premove destination
         setPremove({ from: selectedSquare, to: square });
         return null;
       }
-      // Select own piece for premove
       const piece = game.get(square);
       if (piece && piece.color === playerColor) {
         setPremove(null);
@@ -223,7 +209,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
       return null;
     }
 
-    // --- Normal mode (player's turn) ---
     if (isAiThinking) return null;
     setPremove(null);
 
@@ -233,7 +218,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
         const promotionMove = moves.find(m => m.to === square && m.promotion);
 
         if (promotionMove) {
-          // Show promotion chooser instead of auto-queening
           setPendingPromotion({ from: selectedSquare, to: square });
           return null;
         }
@@ -244,7 +228,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
           return null;
         }
       } catch (e) {
-        // invalid move, fall through to piece selection
       }
     }
 
@@ -263,7 +246,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
       const move = game.move({ from, to, promotion: promotionPiece });
       if (move) onMoveMade(move);
     } catch (e) {
-      console.error('Promotion error:', e);
     }
     setPendingPromotion(null);
   };
@@ -277,7 +259,7 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     setPendingPromotion(null);
     setFen(game.fen());
     setMoveHistory((prev) => [...prev, move]);
-    
+
     if (move.captured) {
       setCaptured(prev => ({
         ...prev,
@@ -287,7 +269,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
 
     const isOver = checkGameOver();
 
-    // In AI mode, trigger AI move if game is not over and it's AI's turn
     if (gameMode === 'ai' && !isOver && game.turn() !== playerColor) {
       getAIMove();
     }
@@ -323,16 +304,13 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     return false;
   };
 
-  // Undo last move (in AI mode: undo both AI + player move)
   const undoMove = () => {
     if (gameOver || moveHistory.length === 0 || isAiThinking) return false;
 
     const undoOne = () => {
       const undone = game.undo();
       if (!undone) return null;
-      // Remove from move history
       setMoveHistory(prev => prev.slice(0, -1));
-      // Remove captured piece if any
       if (undone.captured) {
         setCaptured(prev => {
           const arr = [...prev[undone.color]];
@@ -345,10 +323,10 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     };
 
     if (gameMode === 'ai') {
-      // Undo AI move + player move (go back one full turn)
+      // Undo both AI + player move for a full turn
       if (moveHistory.length >= 2) {
-        undoOne(); // undo AI move
-        undoOne(); // undo player move
+        undoOne();
+        undoOne();
       } else if (moveHistory.length === 1) {
         undoOne();
       }
@@ -387,7 +365,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
     setGameResult(result);
   };
 
-  // Force with structured data
   const forceGameOverStructured = (resultObj) => {
     setGameOver(true);
     setGameResult(resultObj);
@@ -401,11 +378,9 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
         onMoveMade(moveObj);
       }
     } catch (e) {
-      console.error("Invalid external move", e);
     }
   };
 
-  // Replay a list of SAN moves from scratch (used for reconnection after reload)
   const loadGameFromMoves = (sanList) => {
     const newGame = new Chess();
     const history = [];
@@ -420,7 +395,6 @@ export function useChessLogic(currentPlayer, hintsEnabled, gameMode = 'ai') {
           }
         }
       } catch (e) {
-        console.error('loadGameFromMoves: invalid move', san, e);
         break;
       }
     }
