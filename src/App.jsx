@@ -12,8 +12,7 @@ import AuthPage from './AuthPage';
 import Dashboard from './DashboardNew';
 import GameMode from './GameMode';
 import GameAnalysis, { EvalBar } from './GameAnalysis';
-import AdminPanel from './AdminPanel';
-import { ChevronDown, Settings, MessageSquare, Plus, BarChart3, LogOut, Copy, Check, Undo2, Clock, ArrowLeft, User, Swords, Wifi, WifiOff, Volume2, VolumeX, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw, Flag, MessageCircle, Handshake, X, Send, RefreshCw, Crown, Sparkles, Shield } from 'lucide-react';
+import { ChevronDown, Settings, MessageSquare, Plus, BarChart3, LogOut, Copy, Check, Undo2, Clock, ArrowLeft, User, Swords, Wifi, WifiOff, Volume2, VolumeX, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw, Flag, MessageCircle, Handshake, X, Send, RefreshCw, Crown, Sparkles } from 'lucide-react';
 
 function ChessClock({ whiteTime, blackTime, activeTurn, gameStarted, gameOver, playerColor, timeControl }) {
   const isFlipped = playerColor === 'b';
@@ -336,7 +335,7 @@ function GameView({ onAdminClick }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(gameData)
-      }).then(res => res.ok ? res.json() : null).catch(() => {});
+      }).then(res => res.ok ? res.json() : null).catch(() => { });
     }
   }, [gameOver, gameResult, token]);
 
@@ -639,14 +638,14 @@ function GameView({ onAdminClick }) {
           <div className="flex flex-wrap items-center justify-center gap-1.5 mb-3 shrink-0">
             {gameMode === 'ai' ? (
               <>
-                <button onClick={handleNewGame} className="btn btn-primary btn-sm"><Plus className="w-3 h-3"/> New Game</button>
-                <button onClick={undoMove} disabled={moveHistory.length === 0 || isAiThinking || gameOver} className="btn btn-sm"><Undo2 className="w-3 h-3"/> Back</button>
+                <button onClick={handleNewGame} className="btn btn-primary btn-sm"><Plus className="w-3 h-3" /> New Game</button>
+                <button onClick={undoMove} disabled={moveHistory.length === 0 || isAiThinking || gameOver} className="btn btn-sm"><Undo2 className="w-3 h-3" /> Back</button>
                 <button onClick={() => setHintsEnabled(!hintsEnabled)} className={`btn btn-sm ${hintsEnabled ? 'btn-active' : ''}`}>Hints</button>
                 <button onClick={() => setCommentaryEnabled(!commentaryEnabled)} className={`btn btn-sm ${commentaryEnabled ? 'btn-active' : ''}`}>Comm</button>
                 <button onClick={handleToggleSound} className={`btn btn-sm ${soundOn ? 'btn-active' : ''}`} title="Toggle sound">
-                  {soundOn ? <Volume2 className="w-3 h-3"/> : <VolumeX className="w-3 h-3"/>}
+                  {soundOn ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
                 </button>
-                <button onClick={resign} className="btn btn-danger btn-sm"><Flag className="w-3 h-3"/> Resign</button>
+                <button onClick={resign} className="btn btn-danger btn-sm"><Flag className="w-3 h-3" /> Resign</button>
                 <div className="flex gap-1 ml-1.5">
                   <button onClick={() => { setPlayerColor('w'); handleNewGame(); }} className="btn btn-sm" style={{
                     background: playerColor === 'w' ? '#f0ece4' : 'var(--bg-elevated)', color: playerColor === 'w' ? '#2a2520' : 'var(--text-muted)',
@@ -660,25 +659,25 @@ function GameView({ onAdminClick }) {
               </>
             ) : gameMode === 'local' ? (
               <>
-                <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }} className="btn btn-primary btn-sm"><Plus className="w-3 h-3"/> New Game</button>
-                <button onClick={undoMove} disabled={moveHistory.length === 0 || gameOver} className="btn btn-sm"><Undo2 className="w-3 h-3"/> Back</button>
-                <button onClick={() => setAutoFlipLocal(!autoFlipLocal)} className={`btn btn-sm ${autoFlipLocal ? 'btn-active' : ''}`}><RotateCcw className="w-3 h-3"/> Auto Flip</button>
+                <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }} className="btn btn-primary btn-sm"><Plus className="w-3 h-3" /> New Game</button>
+                <button onClick={undoMove} disabled={moveHistory.length === 0 || gameOver} className="btn btn-sm"><Undo2 className="w-3 h-3" /> Back</button>
+                <button onClick={() => setAutoFlipLocal(!autoFlipLocal)} className={`btn btn-sm ${autoFlipLocal ? 'btn-active' : ''}`}><RotateCcw className="w-3 h-3" /> Auto Flip</button>
                 {!autoFlipLocal && (<button onClick={() => setManualFlip(!manualFlip)} className="btn btn-sm">Flip</button>)}
-                <button onClick={handleToggleSound} className={`btn btn-sm ${soundOn ? 'btn-active' : ''}`}>{soundOn ? <Volume2 className="w-3 h-3"/> : <VolumeX className="w-3 h-3"/>}</button>
-                <button onClick={resign} className="btn btn-danger btn-sm"><Flag className="w-3 h-3"/> Resign</button>
+                <button onClick={handleToggleSound} className={`btn btn-sm ${soundOn ? 'btn-active' : ''}`}>{soundOn ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}</button>
+                <button onClick={resign} className="btn btn-danger btn-sm"><Flag className="w-3 h-3" /> Resign</button>
               </>
             ) : (
               <>
-                <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }} className="btn btn-primary btn-sm"><Plus className="w-3 h-3"/> New</button>
-                <button onClick={handleToggleSound} className={`btn btn-sm ${soundOn ? 'btn-active' : ''}`}>{soundOn ? <Volume2 className="w-3 h-3"/> : <VolumeX className="w-3 h-3"/>}</button>
-                {moveHistory.length < 2 && !gameOver && opponentOnline && (<button onClick={mpAbortGame} className="btn btn-sm"><X className="w-3 h-3"/> Abort</button>)}
+                <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }} className="btn btn-primary btn-sm"><Plus className="w-3 h-3" /> New</button>
+                <button onClick={handleToggleSound} className={`btn btn-sm ${soundOn ? 'btn-active' : ''}`}>{soundOn ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}</button>
+                {moveHistory.length < 2 && !gameOver && opponentOnline && (<button onClick={mpAbortGame} className="btn btn-sm"><X className="w-3 h-3" /> Abort</button>)}
                 {moveHistory.length > 0 && !gameOver && (
-                  <button onClick={mpRequestTakeback} disabled={mpTakebackSent} className={`btn btn-sm ${mpTakebackSent ? 'opacity-50' : ''}`}><Undo2 className="w-3 h-3"/> {mpTakebackSent ? 'Sent' : 'Takeback'}</button>
+                  <button onClick={mpRequestTakeback} disabled={mpTakebackSent} className={`btn btn-sm ${mpTakebackSent ? 'opacity-50' : ''}`}><Undo2 className="w-3 h-3" /> {mpTakebackSent ? 'Sent' : 'Takeback'}</button>
                 )}
                 {moveHistory.length >= 2 && !gameOver && (
-                  <button onClick={mpOfferDraw} disabled={mpDrawOfferSent} className={`btn btn-sm ${mpDrawOfferSent ? 'opacity-50' : ''}`}><Handshake className="w-3 h-3"/> {mpDrawOfferSent ? 'Offered' : 'Draw'}</button>
+                  <button onClick={mpOfferDraw} disabled={mpDrawOfferSent} className={`btn btn-sm ${mpDrawOfferSent ? 'opacity-50' : ''}`}><Handshake className="w-3 h-3" /> {mpDrawOfferSent ? 'Offered' : 'Draw'}</button>
                 )}
-                {!gameOver && (<button onClick={() => { resign(); multiplayerResign(); }} className="btn btn-danger btn-sm"><Flag className="w-3 h-3"/> Resign</button>)}
+                {!gameOver && (<button onClick={() => { resign(); multiplayerResign(); }} className="btn btn-danger btn-sm"><Flag className="w-3 h-3" /> Resign</button>)}
               </>
             )}
           </div>
@@ -737,7 +736,7 @@ function GameView({ onAdminClick }) {
                 <div className="absolute inset-0 flex flex-col items-center justify-center z-50 rounded-md" style={{ background: 'rgba(10, 10, 15, 0.92)', backdropFilter: 'blur(8px)', animation: 'fadeInScale 0.3s ease' }}>
                   <div className="text-2xl font-black mb-2" style={{ color: 'var(--warning)' }}>Game Aborted</div>
                   <div className="text-sm text-center mb-5" style={{ color: 'var(--text-muted)' }}>The game was cancelled before it started.</div>
-                  <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }} className="btn btn-primary"><ArrowLeft className="w-3.5 h-3.5"/> Back to Menu</button>
+                  <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }} className="btn btn-primary"><ArrowLeft className="w-3.5 h-3.5" /> Back to Menu</button>
                 </div>
               )}
 
@@ -798,7 +797,7 @@ function GameView({ onAdminClick }) {
                         {mpRematchOffered ? (
                           <div className="flex flex-col items-center gap-2">
                             <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>{mpOpponentName || 'Opponent'} wants a rematch!</span>
-                            <button onClick={mpOfferRematch} className="btn btn-primary px-5 py-1.5 text-sm"><RefreshCw className="w-3.5 h-3.5"/> Accept Rematch</button>
+                            <button onClick={mpOfferRematch} className="btn btn-primary px-5 py-1.5 text-sm"><RefreshCw className="w-3.5 h-3.5" /> Accept Rematch</button>
                             <button onClick={mpDeclineRematch} className="text-xs transition-colors" style={{ color: 'var(--text-dim)' }}
                               onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
                               onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
@@ -806,7 +805,7 @@ function GameView({ onAdminClick }) {
                           </div>
                         ) : (
                           <button onClick={mpOfferRematch} disabled={mpRematchOfferSent} className={`btn px-5 py-1.5 text-sm ${mpRematchOfferSent ? 'opacity-60' : ''}`}>
-                            <RefreshCw className="w-3.5 h-3.5"/> {mpRematchOfferSent ? 'Waiting...' : 'Rematch'}
+                            <RefreshCw className="w-3.5 h-3.5" /> {mpRematchOfferSent ? 'Waiting...' : 'Rematch'}
                           </button>
                         )}
                       </div>
@@ -818,13 +817,13 @@ function GameView({ onAdminClick }) {
                           onClick={() => { handleNewGame(); setMultiplayerRoomCode(mpRematchRoomCode); setPlayerColor(playerColor === 'w' ? 'b' : 'w'); setGameMode(gameMode === 'multiplayer_host' ? 'multiplayer_host' : 'multiplayer_guest'); }}
                           className="btn btn-primary px-6 py-2 text-sm"
                         >
-                          <RefreshCw className="w-3.5 h-3.5"/> Join Rematch
+                          <RefreshCw className="w-3.5 h-3.5" /> Join Rematch
                         </button>
                       </div>
                     )}
 
                     <div className="flex gap-2">
-                      <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }} className="btn px-5 py-2 text-sm"><ArrowLeft className="w-3.5 h-3.5"/> Menu</button>
+                      <button onClick={() => { setGameMode(null); setMultiplayerRoomCode(null); handleNewGame(); }} className="btn px-5 py-2 text-sm"><ArrowLeft className="w-3.5 h-3.5" /> Menu</button>
                       {!isMultiplayer && (<button onClick={handleNewGame} className="btn btn-primary px-6 py-2 text-sm">Play Again</button>)}
                     </div>
                   </div>
@@ -859,266 +858,266 @@ function GameView({ onAdminClick }) {
               viewingMoveIndex={viewingMoveIndex} onEvalUpdate={setAnalysisEval}
             />
           ) : (
-          <>
-          {/* AI Opponent card */}
-          {gameMode === 'ai' && (
-            <div className="panel">
-              <div className="p-3 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shrink-0" style={{
-                  color: currentPlayer.color,
-                  background: `${currentPlayer.color}15`,
-                  border: `1px solid ${currentPlayer.color}25`,
-                }}>
-                  {currentPlayer.avatar}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold truncate" style={{ color: 'var(--text-primary)' }}>{currentPlayer.country} {currentPlayer.name}</div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{currentPlayer.title}</span>
-                    <span className="badge badge-gold text-[9px]">{currentPlayer.elo}</span>
+            <>
+              {/* AI Opponent card */}
+              {gameMode === 'ai' && (
+                <div className="panel">
+                  <div className="p-3 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shrink-0" style={{
+                      color: currentPlayer.color,
+                      background: `${currentPlayer.color}15`,
+                      border: `1px solid ${currentPlayer.color}25`,
+                    }}>
+                      {currentPlayer.avatar}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold truncate" style={{ color: 'var(--text-primary)' }}>{currentPlayer.country} {currentPlayer.name}</div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{currentPlayer.title}</span>
+                        <span className="badge badge-gold text-[9px]">{currentPlayer.elo}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="text-[10px] font-semibold" style={{ color: isAiThinking ? 'var(--warning)' : gameOver ? 'var(--text-dim)' : 'var(--accent)' }}>
+                        {isAiThinking ? 'Thinking...' : gameOver ? 'Game Over' : 'Your move'}
+                      </span>
+                      {timeControl && <span className="badge text-[9px]">{timeControl.format?.toUpperCase()}</span>}
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-col items-end gap-0.5">
-                  <span className="text-[10px] font-semibold" style={{ color: isAiThinking ? 'var(--warning)' : gameOver ? 'var(--text-dim)' : 'var(--accent)' }}>
-                    {isAiThinking ? 'Thinking...' : gameOver ? 'Game Over' : 'Your move'}
-                  </span>
-                  {timeControl && <span className="badge text-[9px]">{timeControl.format?.toUpperCase()}</span>}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Captured Pieces */}
-          <div className="panel p-3">
-            <div className="text-[10px] uppercase tracking-[0.12em] font-bold mb-2" style={{ color: 'var(--text-muted)' }}>Captured</div>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <div className="text-[9px] mb-0.5 uppercase tracking-wider font-bold" style={{ color: 'var(--text-dim)' }}>White</div>
-                <div className="text-[20px] min-h-[26px] flex flex-wrap gap-0.5 leading-none">
-                  {captured.w.length > 0 ? captured.w.map((p, i) => (
-                    <span key={i} style={{ color: 'var(--text-dim)' }}>{{ p: '\u265F', n: '\u265E', b: '\u265D', r: '\u265C', q: '\u265B' }[p] || p}</span>
-                  )) : <span className="text-[10px] font-mono" style={{ color: 'var(--text-dim)' }}>--</span>}
-                </div>
-              </div>
-              <div style={{ width: '1px', background: 'var(--border-subtle)' }} />
-              <div className="flex-1">
-                <div className="text-[9px] mb-0.5 uppercase tracking-wider font-bold" style={{ color: 'var(--text-dim)' }}>Black</div>
-                <div className="text-[20px] min-h-[26px] flex flex-wrap gap-0.5 leading-none">
-                  {captured.b.length > 0 ? captured.b.map((p, i) => (
-                    <span key={i} style={{ color: 'var(--text-secondary)' }}>{{ p: '\u2659', n: '\u2658', b: '\u2657', r: '\u2656', q: '\u2655' }[p] || p}</span>
-                  )) : <span className="text-[10px] font-mono" style={{ color: 'var(--text-dim)' }}>--</span>}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Move History */}
-          <div className="panel flex flex-col min-h-[100px] max-h-[260px] text-xs">
-            <div className="panel-header shrink-0">
-              Moves
-              {isViewingHistory && <span className="badge badge-warning ml-auto text-[9px]">REVIEWING</span>}
-            </div>
-            <div className="flex-1 overflow-y-auto p-2 font-mono" ref={movesScrollRef}>
-              {moveHistory.length === 0 ? (
-                <div className="text-center py-4" style={{ color: 'var(--text-dim)' }}>No moves yet</div>
-              ) : (
-                <div className="grid grid-cols-[28px_1fr_1fr] gap-x-2 gap-y-0.5 items-center px-1">
-                  {Array.from({ length: Math.ceil(moveHistory.length / 2) }).map((_, i) => {
-                    const whiteIdx = i * 2;
-                    const blackIdx = i * 2 + 1;
-                    const currentViewIdx = viewingMoveIndex === null ? moveHistory.length - 1 : viewingMoveIndex;
-                    return (
-                      <React.Fragment key={i}>
-                        <span className="move-number">{i + 1}.</span>
-                        <span onClick={() => goToMove(whiteIdx)} className={`move-san ${whiteIdx === currentViewIdx ? 'current' : ''}`}>{moveHistory[whiteIdx]?.san}</span>
-                        {moveHistory[blackIdx] ? (
-                          <span onClick={() => goToMove(blackIdx)} className={`move-san ${blackIdx === currentViewIdx ? 'current' : ''}`}>{moveHistory[blackIdx].san}</span>
-                        ) : <span />}
-                      </React.Fragment>
-                    );
-                  })}
                 </div>
               )}
-            </div>
-            {moveHistory.length > 0 && (
-              <div className="flex items-center justify-center gap-1 px-2 py-1.5 shrink-0" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                <button onClick={goToStart} disabled={viewingMoveIndex === -1} className="btn btn-ghost btn-sm p-1.5"><ChevronsLeft className="w-3.5 h-3.5" /></button>
-                <button onClick={goBack} disabled={viewingMoveIndex === -1} className="btn btn-ghost btn-sm p-1.5"><ChevronLeft className="w-3.5 h-3.5" /></button>
-                <button onClick={goForward} disabled={viewingMoveIndex === null} className="btn btn-ghost btn-sm p-1.5"><ChevronRight className="w-3.5 h-3.5" /></button>
-                <button onClick={goToEnd} disabled={viewingMoveIndex === null} className="btn btn-ghost btn-sm p-1.5"><ChevronsRight className="w-3.5 h-3.5" /></button>
-              </div>
-            )}
-          </div>
 
-          {/* Bottom panel */}
-          {gameMode === null ? (
-            <div className="panel flex-1 flex flex-col min-h-[200px] overflow-hidden relative">
-              <GameMode onPlayAI={handlePlayAI} onMultiplayerStart={handleMultiplayerStart} onLocalStart={handleLocalStart} autoJoinRoomCode={autoJoinRoomCode} />
-            </div>
-          ) : gameMode === 'ai' ? (
-            <div className="panel flex-1 flex flex-col min-h-[180px]">
-              <div className="panel-header shrink-0">
-                <MessageSquare className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} /> Live Commentary
-                <span className="ml-auto flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--danger)', animation: 'pulse-dot 1.5s infinite' }} />
-                  <span className="text-[9px] font-bold" style={{ color: 'var(--danger)' }}>LIVE</span>
-                </span>
-              </div>
-              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
-                {messages.map((m, i) => (
-                  <div key={i} className={`flex gap-2.5 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    {m.role === 'model' && (
-                      <div className="w-6 h-6 rounded-lg shrink-0 flex items-center justify-center text-[10px] font-black" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(16, 185, 129, 0.2)', color: 'var(--accent)' }}>
-                        AI
-                      </div>
-                    )}
-                    <div className="text-xs leading-relaxed p-2.5 rounded-xl max-w-[85%]" style={{
-                      background: m.role === 'user' ? 'var(--accent-muted)' : 'var(--bg-elevated)',
-                      border: `1px solid ${m.role === 'user' ? 'rgba(16, 185, 129, 0.2)' : 'var(--border-color)'}`,
-                      color: 'var(--text-primary)',
-                      borderColor: m.isStreaming ? 'var(--accent)' : undefined,
-                    }}>
-                      {m.parts[0].text}
-                      {m.isStreaming && <span style={{ color: 'var(--accent)' }} className="ml-1 animate-pulse">|</span>}
+              {/* Captured Pieces */}
+              <div className="panel p-3">
+                <div className="text-[10px] uppercase tracking-[0.12em] font-bold mb-2" style={{ color: 'var(--text-muted)' }}>Captured</div>
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <div className="text-[9px] mb-0.5 uppercase tracking-wider font-bold" style={{ color: 'var(--text-dim)' }}>White</div>
+                    <div className="text-[20px] min-h-[26px] flex flex-wrap gap-0.5 leading-none">
+                      {captured.w.length > 0 ? captured.w.map((p, i) => (
+                        <span key={i} style={{ color: 'var(--text-dim)' }}>{{ p: '\u265F', n: '\u265E', b: '\u265D', r: '\u265C', q: '\u265B' }[p] || p}</span>
+                      )) : <span className="text-[10px] font-mono" style={{ color: 'var(--text-dim)' }}>--</span>}
                     </div>
                   </div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-              <form onSubmit={submitChat} className="p-2.5 flex gap-2 shrink-0" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Talk to the commentator..." className="input flex-1 text-[11px]" disabled={!isConnected} />
-                <button disabled={!isConnected || isStreaming} className="btn btn-primary btn-sm">Send</button>
-              </form>
-            </div>
-          ) : gameMode === 'local' ? (
-            <div className="panel flex-1 flex flex-col min-h-[80px] justify-center">
-              <div className="p-5 text-center">
-                <div className="text-sm font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Local Multiplayer</div>
-                <div className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Pass the device to play</div>
-                <div className="flex items-center justify-center gap-2.5 p-3 rounded-xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-color)' }}>
-                  <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Current Turn:</span>
-                  <span className="text-base font-black" style={{ color: game.turn() === 'w' ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                    {game.turn() === 'w' ? '\u2654 White' : '\u265A Black'}
-                  </span>
+                  <div style={{ width: '1px', background: 'var(--border-subtle)' }} />
+                  <div className="flex-1">
+                    <div className="text-[9px] mb-0.5 uppercase tracking-wider font-bold" style={{ color: 'var(--text-dim)' }}>Black</div>
+                    <div className="text-[20px] min-h-[26px] flex flex-wrap gap-0.5 leading-none">
+                      {captured.b.length > 0 ? captured.b.map((p, i) => (
+                        <span key={i} style={{ color: 'var(--text-secondary)' }}>{{ p: '\u2659', n: '\u2658', b: '\u2657', r: '\u2656', q: '\u2655' }[p] || p}</span>
+                      )) : <span className="text-[10px] font-mono" style={{ color: 'var(--text-dim)' }}>--</span>}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            /* Multiplayer panel */
-            <div className="panel flex-1 flex flex-col min-h-[100px] overflow-hidden">
-              <div className="panel-header shrink-0">
-                <Swords className="w-3.5 h-3.5" style={{ color: 'var(--gold)' }} /> Online Match
-                {timeControl && <span className="badge ml-1 text-[9px]">{timeControl.label}</span>}
-                <span className={`ml-auto ${opponentOnline ? 'badge badge-success' : 'badge badge-warning'}`} style={{ fontSize: '9px' }}>
-                  {opponentOnline ? 'LIVE' : 'WAITING'}
-                </span>
-              </div>
-              <div className="flex flex-col flex-1 overflow-hidden">
-                <div className="p-2.5 flex flex-col gap-2 shrink-0">
-                  {/* You */}
-                  <div className="flex items-center gap-2.5 p-2.5 rounded-xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-color)' }}>
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0" style={{ background: 'linear-gradient(135deg, var(--accent), #059669)', color: '#fff' }}>
-                      {user?.name?.[0]?.toUpperCase() || '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-bold truncate" style={{ color: 'var(--text-primary)' }}>{user?.name || 'You'}</div>
-                      <div className="text-[9px] font-semibold" style={{ color: 'var(--text-muted)' }}>{playerColor === 'w' ? '\u2654 White' : '\u265A Black'}</div>
-                    </div>
-                    <div className={`status-dot ${mpConnected ? 'status-online' : 'status-offline'}`} />
-                  </div>
 
-                  <div className="flex items-center gap-2 px-2">
-                    <div className="flex-1 divider" />
-                    <span className="text-[8px] font-black tracking-[0.2em]" style={{ color: 'var(--text-dim)' }}>VS</span>
-                    <div className="flex-1 divider" />
-                  </div>
-
-                  {/* Opponent */}
-                  <div className="flex items-center gap-2.5 p-2.5 rounded-xl transition-all" style={{
-                    background: opponentOnline ? 'var(--bg-elevated)' : 'transparent',
-                    border: opponentOnline ? '1px solid var(--border-color)' : '1px dashed var(--border-color)'
-                  }}>
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0" style={{
-                      background: opponentOnline ? 'var(--bg-surface)' : 'transparent',
-                      border: opponentOnline ? '1px solid var(--border-color)' : '1px dashed var(--border-color)',
-                      color: opponentOnline ? 'var(--text-primary)' : 'var(--text-dim)'
-                    }}>
-                      {opponentOnline ? (mpOpponentName?.[0]?.toUpperCase() || '?') : '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-bold truncate" style={{ color: 'var(--text-primary)' }}>
-                        {opponentOnline ? (mpOpponentName || 'Opponent') : 'Waiting for friend...'}
-                      </div>
-                      <div className="text-[9px] font-semibold" style={{ color: 'var(--text-muted)' }}>
-                        {opponentOnline ? (playerColor === 'w' ? '\u265A Black' : '\u2654 White') : 'Share the room link'}
-                      </div>
-                    </div>
-                    <div className={`status-dot ${opponentOnline ? 'status-online' : 'status-waiting'}`} />
-                  </div>
-
-                  {gameMode === 'multiplayer_host' && !opponentOnline && (
-                    <div className="p-2.5 rounded-xl" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)' }}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[9px] uppercase tracking-[0.1em] font-bold" style={{ color: 'var(--text-dim)' }}>Room Code</span>
-                        <button onClick={copyRoomCode} className="text-[9px] flex items-center gap-1 font-semibold transition-colors" style={{ color: 'var(--accent)' }}>
-                          {colorCopied ? <><Check size={9} /> Copied</> : <><Copy size={9} /> Copy link</>}
-                        </button>
-                      </div>
-                      <div className="text-center font-mono text-base font-black tracking-[0.3em]" style={{ color: 'var(--accent)' }}>{multiplayerRoomCode}</div>
-                    </div>
-                  )}
-
-                  {opponentOnline && !gameOver && (
-                    <div className="flex items-center justify-center gap-2 p-2 rounded-xl transition-all" style={{
-                      background: game.turn() === playerColor ? 'rgba(16, 185, 129, 0.06)' : 'var(--bg-elevated)',
-                      border: `1px solid ${game.turn() === playerColor ? 'rgba(16, 185, 129, 0.2)' : 'var(--border-color)'}`
-                    }}>
-                      <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
-                        {game.turn() === playerColor ? 'Your turn' : `${mpOpponentName || 'Opponent'}'s turn`}
-                      </span>
-                      <span className="text-sm font-bold">{game.turn() === 'w' ? '\u2654' : '\u265A'}</span>
-                    </div>
-                  )}
+              {/* Move History */}
+              <div className="panel flex flex-col min-h-[100px] max-h-[260px] text-xs">
+                <div className="panel-header shrink-0">
+                  Moves
+                  {isViewingHistory && <span className="badge badge-warning ml-auto text-[9px]">REVIEWING</span>}
                 </div>
-
-                {/* Chat */}
-                <div className="flex-1 flex flex-col overflow-hidden" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                  <div className="px-3 py-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] font-bold shrink-0" style={{ color: 'var(--text-dim)', borderBottom: '1px solid var(--border-subtle)' }}>
-                    <MessageCircle className="w-3 h-3" /> Chat
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-2.5 flex flex-col gap-1.5">
-                    {mpChatMessages.length === 0 ? (
-                      <div className="text-[10px] text-center py-4" style={{ color: 'var(--text-dim)' }}>
-                        {opponentOnline ? 'Say hello to your opponent!' : 'Chat will appear here'}
-                      </div>
-                    ) : (
-                      mpChatMessages.map((msg, i) => {
-                        const isMe = msg.userId === user?.id || msg.name === user?.name;
+                <div className="flex-1 overflow-y-auto p-2 font-mono" ref={movesScrollRef}>
+                  {moveHistory.length === 0 ? (
+                    <div className="text-center py-4" style={{ color: 'var(--text-dim)' }}>No moves yet</div>
+                  ) : (
+                    <div className="grid grid-cols-[28px_1fr_1fr] gap-x-2 gap-y-0.5 items-center px-1">
+                      {Array.from({ length: Math.ceil(moveHistory.length / 2) }).map((_, i) => {
+                        const whiteIdx = i * 2;
+                        const blackIdx = i * 2 + 1;
+                        const currentViewIdx = viewingMoveIndex === null ? moveHistory.length - 1 : viewingMoveIndex;
                         return (
-                          <div key={i} className={`flex gap-1.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                            <div className="text-[11px] px-3 py-1.5 rounded-xl max-w-[80%]" style={{
-                              background: isMe ? 'var(--accent-muted)' : 'var(--bg-elevated)',
-                              border: `1px solid ${isMe ? 'rgba(16, 185, 129, 0.2)' : 'var(--border-color)'}`,
-                              color: 'var(--text-primary)'
-                            }}>
-                              {!isMe && <span className="text-[9px] font-bold block mb-0.5" style={{ color: 'var(--accent)' }}>{msg.name}</span>}
-                              {msg.message}
-                            </div>
-                          </div>
+                          <React.Fragment key={i}>
+                            <span className="move-number">{i + 1}.</span>
+                            <span onClick={() => goToMove(whiteIdx)} className={`move-san ${whiteIdx === currentViewIdx ? 'current' : ''}`}>{moveHistory[whiteIdx]?.san}</span>
+                            {moveHistory[blackIdx] ? (
+                              <span onClick={() => goToMove(blackIdx)} className={`move-san ${blackIdx === currentViewIdx ? 'current' : ''}`}>{moveHistory[blackIdx].san}</span>
+                            ) : <span />}
+                          </React.Fragment>
                         );
-                      })
-                    )}
-                    <div ref={mpChatEndRef} />
+                      })}
+                    </div>
+                  )}
+                </div>
+                {moveHistory.length > 0 && (
+                  <div className="flex items-center justify-center gap-1 px-2 py-1.5 shrink-0" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                    <button onClick={goToStart} disabled={viewingMoveIndex === -1} className="btn btn-ghost btn-sm p-1.5"><ChevronsLeft className="w-3.5 h-3.5" /></button>
+                    <button onClick={goBack} disabled={viewingMoveIndex === -1} className="btn btn-ghost btn-sm p-1.5"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                    <button onClick={goForward} disabled={viewingMoveIndex === null} className="btn btn-ghost btn-sm p-1.5"><ChevronRight className="w-3.5 h-3.5" /></button>
+                    <button onClick={goToEnd} disabled={viewingMoveIndex === null} className="btn btn-ghost btn-sm p-1.5"><ChevronsRight className="w-3.5 h-3.5" /></button>
                   </div>
-                  <form onSubmit={(e) => { e.preventDefault(); if (mpChatInput.trim()) { mpSendChat(mpChatInput); setMpChatInput(''); } }} className="p-2 flex gap-1.5 shrink-0" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                    <input type="text" value={mpChatInput} onChange={e => setMpChatInput(e.target.value)} placeholder="Type a message..." maxLength={200} className="input flex-1 text-[11px]" />
-                    <button type="submit" disabled={!mpChatInput.trim()} className="btn btn-primary btn-sm p-1.5"><Send className="w-3.5 h-3.5" /></button>
+                )}
+              </div>
+
+              {/* Bottom panel */}
+              {gameMode === null ? (
+                <div className="panel flex-1 flex flex-col min-h-[200px] overflow-hidden relative">
+                  <GameMode onPlayAI={handlePlayAI} onMultiplayerStart={handleMultiplayerStart} onLocalStart={handleLocalStart} autoJoinRoomCode={autoJoinRoomCode} />
+                </div>
+              ) : gameMode === 'ai' ? (
+                <div className="panel flex-1 flex flex-col min-h-[180px]">
+                  <div className="panel-header shrink-0">
+                    <MessageSquare className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} /> Live Commentary
+                    <span className="ml-auto flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--danger)', animation: 'pulse-dot 1.5s infinite' }} />
+                      <span className="text-[9px] font-bold" style={{ color: 'var(--danger)' }}>LIVE</span>
+                    </span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
+                    {messages.map((m, i) => (
+                      <div key={i} className={`flex gap-2.5 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        {m.role === 'model' && (
+                          <div className="w-6 h-6 rounded-lg shrink-0 flex items-center justify-center text-[10px] font-black" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(16, 185, 129, 0.2)', color: 'var(--accent)' }}>
+                            AI
+                          </div>
+                        )}
+                        <div className="text-xs leading-relaxed p-2.5 rounded-xl max-w-[85%]" style={{
+                          background: m.role === 'user' ? 'var(--accent-muted)' : 'var(--bg-elevated)',
+                          border: `1px solid ${m.role === 'user' ? 'rgba(16, 185, 129, 0.2)' : 'var(--border-color)'}`,
+                          color: 'var(--text-primary)',
+                          borderColor: m.isStreaming ? 'var(--accent)' : undefined,
+                        }}>
+                          {m.parts[0].text}
+                          {m.isStreaming && <span style={{ color: 'var(--accent)' }} className="ml-1 animate-pulse">|</span>}
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={chatEndRef} />
+                  </div>
+                  <form onSubmit={submitChat} className="p-2.5 flex gap-2 shrink-0" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                    <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Talk to the commentator..." className="input flex-1 text-[11px]" disabled={!isConnected} />
+                    <button disabled={!isConnected || isStreaming} className="btn btn-primary btn-sm">Send</button>
                   </form>
                 </div>
-              </div>
-            </div>
-          )}
-          </>
+              ) : gameMode === 'local' ? (
+                <div className="panel flex-1 flex flex-col min-h-[80px] justify-center">
+                  <div className="p-5 text-center">
+                    <div className="text-sm font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Local Multiplayer</div>
+                    <div className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Pass the device to play</div>
+                    <div className="flex items-center justify-center gap-2.5 p-3 rounded-xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-color)' }}>
+                      <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Current Turn:</span>
+                      <span className="text-base font-black" style={{ color: game.turn() === 'w' ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                        {game.turn() === 'w' ? '\u2654 White' : '\u265A Black'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Multiplayer panel */
+                <div className="panel flex-1 flex flex-col min-h-[100px] overflow-hidden">
+                  <div className="panel-header shrink-0">
+                    <Swords className="w-3.5 h-3.5" style={{ color: 'var(--gold)' }} /> Online Match
+                    {timeControl && <span className="badge ml-1 text-[9px]">{timeControl.label}</span>}
+                    <span className={`ml-auto ${opponentOnline ? 'badge badge-success' : 'badge badge-warning'}`} style={{ fontSize: '9px' }}>
+                      {opponentOnline ? 'LIVE' : 'WAITING'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col flex-1 overflow-hidden">
+                    <div className="p-2.5 flex flex-col gap-2 shrink-0">
+                      {/* You */}
+                      <div className="flex items-center gap-2.5 p-2.5 rounded-xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-color)' }}>
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0" style={{ background: 'linear-gradient(135deg, var(--accent), #059669)', color: '#fff' }}>
+                          {user?.name?.[0]?.toUpperCase() || '?'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-bold truncate" style={{ color: 'var(--text-primary)' }}>{user?.name || 'You'}</div>
+                          <div className="text-[9px] font-semibold" style={{ color: 'var(--text-muted)' }}>{playerColor === 'w' ? '\u2654 White' : '\u265A Black'}</div>
+                        </div>
+                        <div className={`status-dot ${mpConnected ? 'status-online' : 'status-offline'}`} />
+                      </div>
+
+                      <div className="flex items-center gap-2 px-2">
+                        <div className="flex-1 divider" />
+                        <span className="text-[8px] font-black tracking-[0.2em]" style={{ color: 'var(--text-dim)' }}>VS</span>
+                        <div className="flex-1 divider" />
+                      </div>
+
+                      {/* Opponent */}
+                      <div className="flex items-center gap-2.5 p-2.5 rounded-xl transition-all" style={{
+                        background: opponentOnline ? 'var(--bg-elevated)' : 'transparent',
+                        border: opponentOnline ? '1px solid var(--border-color)' : '1px dashed var(--border-color)'
+                      }}>
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0" style={{
+                          background: opponentOnline ? 'var(--bg-surface)' : 'transparent',
+                          border: opponentOnline ? '1px solid var(--border-color)' : '1px dashed var(--border-color)',
+                          color: opponentOnline ? 'var(--text-primary)' : 'var(--text-dim)'
+                        }}>
+                          {opponentOnline ? (mpOpponentName?.[0]?.toUpperCase() || '?') : '?'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-bold truncate" style={{ color: 'var(--text-primary)' }}>
+                            {opponentOnline ? (mpOpponentName || 'Opponent') : 'Waiting for friend...'}
+                          </div>
+                          <div className="text-[9px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                            {opponentOnline ? (playerColor === 'w' ? '\u265A Black' : '\u2654 White') : 'Share the room link'}
+                          </div>
+                        </div>
+                        <div className={`status-dot ${opponentOnline ? 'status-online' : 'status-waiting'}`} />
+                      </div>
+
+                      {gameMode === 'multiplayer_host' && !opponentOnline && (
+                        <div className="p-2.5 rounded-xl" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)' }}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[9px] uppercase tracking-[0.1em] font-bold" style={{ color: 'var(--text-dim)' }}>Room Code</span>
+                            <button onClick={copyRoomCode} className="text-[9px] flex items-center gap-1 font-semibold transition-colors" style={{ color: 'var(--accent)' }}>
+                              {colorCopied ? <><Check size={9} /> Copied</> : <><Copy size={9} /> Copy link</>}
+                            </button>
+                          </div>
+                          <div className="text-center font-mono text-base font-black tracking-[0.3em]" style={{ color: 'var(--accent)' }}>{multiplayerRoomCode}</div>
+                        </div>
+                      )}
+
+                      {opponentOnline && !gameOver && (
+                        <div className="flex items-center justify-center gap-2 p-2 rounded-xl transition-all" style={{
+                          background: game.turn() === playerColor ? 'rgba(16, 185, 129, 0.06)' : 'var(--bg-elevated)',
+                          border: `1px solid ${game.turn() === playerColor ? 'rgba(16, 185, 129, 0.2)' : 'var(--border-color)'}`
+                        }}>
+                          <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                            {game.turn() === playerColor ? 'Your turn' : `${mpOpponentName || 'Opponent'}'s turn`}
+                          </span>
+                          <span className="text-sm font-bold">{game.turn() === 'w' ? '\u2654' : '\u265A'}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Chat */}
+                    <div className="flex-1 flex flex-col overflow-hidden" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                      <div className="px-3 py-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] font-bold shrink-0" style={{ color: 'var(--text-dim)', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <MessageCircle className="w-3 h-3" /> Chat
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-2.5 flex flex-col gap-1.5">
+                        {mpChatMessages.length === 0 ? (
+                          <div className="text-[10px] text-center py-4" style={{ color: 'var(--text-dim)' }}>
+                            {opponentOnline ? 'Say hello to your opponent!' : 'Chat will appear here'}
+                          </div>
+                        ) : (
+                          mpChatMessages.map((msg, i) => {
+                            const isMe = msg.userId === user?.id || msg.name === user?.name;
+                            return (
+                              <div key={i} className={`flex gap-1.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                <div className="text-[11px] px-3 py-1.5 rounded-xl max-w-[80%]" style={{
+                                  background: isMe ? 'var(--accent-muted)' : 'var(--bg-elevated)',
+                                  border: `1px solid ${isMe ? 'rgba(16, 185, 129, 0.2)' : 'var(--border-color)'}`,
+                                  color: 'var(--text-primary)'
+                                }}>
+                                  {!isMe && <span className="text-[9px] font-bold block mb-0.5" style={{ color: 'var(--accent)' }}>{msg.name}</span>}
+                                  {msg.message}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                        <div ref={mpChatEndRef} />
+                      </div>
+                      <form onSubmit={(e) => { e.preventDefault(); if (mpChatInput.trim()) { mpSendChat(mpChatInput); setMpChatInput(''); } }} className="p-2 flex gap-1.5 shrink-0" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                        <input type="text" value={mpChatInput} onChange={e => setMpChatInput(e.target.value)} placeholder="Type a message..." maxLength={200} className="input flex-1 text-[11px]" />
+                        <button type="submit" disabled={!mpChatInput.trim()} className="btn btn-primary btn-sm p-1.5"><Send className="w-3.5 h-3.5" /></button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
@@ -1140,7 +1139,6 @@ function GameView({ onAdminClick }) {
 
 function App() {
   const { user, loading } = useAuth();
-  const [showAdmin, setShowAdmin] = useState(false);
 
   if (loading) {
     return (
@@ -1162,11 +1160,7 @@ function App() {
     );
   }
 
-  if (!user) return <AuthPage />;
-  if (user.isAdmin && showAdmin) {
-    return <AdminPanel onExitAdmin={() => setShowAdmin(false)} />;
-  }
-  return <GameView onAdminClick={user.isAdmin ? () => setShowAdmin(true) : null} />;
+  return user ? <GameView /> : <AuthPage />;
 }
 
 export default App;
