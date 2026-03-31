@@ -64,17 +64,14 @@ export default function LandingPage({ onStart, onLogin }) {
         transition={{ type: "spring", stiffness: 80, damping: 20 }}
         className="flex justify-between items-center px-6 md:px-12 py-5 border-b border-white/5 bg-[#050505]/60 backdrop-blur-xl sticky top-0 z-50"
       >
-        <div className="flex items-center gap-3 cursor-pointer group">
-          <motion.div
-            whileHover={{ rotate: 180 }}
-            transition={{ duration: 0.5, ease: "easeInOut" }}
-            className="w-10 h-10 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-400 flex items-center justify-center shadow-[0_0_20px_rgba(34,197,94,0.3)] group-hover:shadow-[0_0_30px_rgba(34,197,94,0.6)] text-black text-2xl"
-          >
-            ♚
-          </motion.div>
-          <h1 className="text-xl md:text-2xl font-black tracking-tight text-white">
-            Chess<span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400">Legends</span>
-          </h1>
+        <div className="flex items-center cursor-pointer group">
+          <motion.img
+            src="/logo.jpg"
+            alt="Chess Legends"
+            whileHover={{ scale: 1.05, filter: "drop-shadow(0px 0px 25px rgba(34,197,94,0.6))" }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className="h-12 md:h-16 w-auto object-contain drop-shadow-[0_0_15px_rgba(34,197,94,0.3)]"
+          />
         </div>
 
         <div className="flex items-center space-x-3 md:space-x-6">

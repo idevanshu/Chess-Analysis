@@ -12,8 +12,15 @@ import AuthPage from './AuthPage';
 import Dashboard from './DashboardNew';
 import GameMode from './GameMode';
 import GameAnalysis, { EvalBar } from './GameAnalysis';
+<<<<<<< HEAD
 import { ChevronDown, Settings, MessageSquare, Plus, BarChart3, LogOut, Copy, Check, Undo2, Clock, ArrowLeft, User, Swords, Wifi, WifiOff, Volume2, VolumeX, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw, Flag, MessageCircle, Handshake, X, Send, RefreshCw, Crown, Sparkles } from 'lucide-react';
 
+=======
+
+import { ChevronDown, Settings, MessageSquare, Plus, BarChart3, LogOut, Copy, Check, Undo2, Clock, ArrowLeft, User, Swords, Wifi, WifiOff, Volume2, VolumeX, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw, Flag, MessageCircle, Handshake, X, Send, RefreshCw, Crown, Sparkles } from 'lucide-react';
+import LandingPage from "./LandingPage"
+import AdminPanel from './AdminPanel';
+>>>>>>> 548e95a (Added logo to landing page)
 function ChessClock({ whiteTime, blackTime, activeTurn, gameStarted, gameOver, playerColor, timeControl }) {
   const isFlipped = playerColor === 'b';
   const topColor = isFlipped ? 'w' : 'b';
@@ -1139,6 +1146,11 @@ function GameView({ onAdminClick }) {
 
 function App() {
   const { user, loading } = useAuth();
+<<<<<<< HEAD
+=======
+  const [showLanding, setShowLanding] = useState(true);
+  const [showAdmin, setShowAdmin] = useState(false);
+>>>>>>> 548e95a (Added logo to landing page)
 
   if (loading) {
     return (
@@ -1160,7 +1172,21 @@ function App() {
     );
   }
 
+<<<<<<< HEAD
   return user ? <GameView /> : <AuthPage />;
+=======
+  if (showLanding) {
+    return <LandingPage onStart={() => setShowLanding(false)} onLogin={() => setShowLanding(false)} />;
+  }
+
+  if (!user) return <AuthPage />;
+
+  if (user.isAdmin && showAdmin) {
+    return <AdminPanel onExitAdmin={() => setShowAdmin(false)} />;
+  }
+
+  return <GameView onAdminClick={user.isAdmin ? () => setShowAdmin(true) : null} />;
+>>>>>>> 548e95a (Added logo to landing page)
 }
 
 export default App;
