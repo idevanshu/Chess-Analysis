@@ -7,13 +7,48 @@ import {
   LineChart,
   BarChart3,
   Sparkles,
-  BrainCircuit,
   Share2,
   Target,
-  BookOpen,
-  Users,
+  BrainCircuit,
   ChevronRight,
+  Github,
+  Twitter,
+  Youtube,
 } from "lucide-react";
+
+// Minimalist synthesized sound effects for pieces
+const playSound = (type) => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === 'pickup') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(400, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.1);
+    } else if (type === 'drop') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(250, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.15);
+    }
+  } catch (e) {
+    // silently fail if audio context is blocked by browser auto-play policies
+  }
+};
 
 export default function LandingPage({ onStart, onLogin }) {
   // Shared Animation Variants
@@ -21,384 +56,549 @@ export default function LandingPage({ onStart, onLogin }) {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
-      transition: { staggerChildren: 0.15, delayChildren: 0.2 },
+      transition: { staggerChildren: 0.15, delayChildren: 0.1 },
     },
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 30 },
-    show: {
-      opacity: 1,
-      y: 0,
-      transition: { type: "spring", stiffness: 100, damping: 20 },
-    },
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100, damping: 20 } },
   };
 
   return (
-    <div className="bg-[#050505] text-white min-h-screen relative overflow-hidden font-sans selection:bg-green-500/30 selection:text-green-200">
+    <div className="bg-[#0f0f12] text-white min-h-screen relative overflow-hidden font-sans">
       
-      {/* --- AMBIENT ANIMATED BACKGROUND --- */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <motion.div
-          animate={{
-            rotate: 360,
-            scale: [1, 1.1, 1],
-          }}
-          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-          className="absolute -top-[30%] -left-[10%] w-[80vw] h-[80vw] bg-green-600/10 rounded-full blur-[140px]"
-        />
-        <motion.div
-          animate={{
-            rotate: -360,
-            scale: [1, 1.2, 1],
-          }}
-          transition={{ duration: 50, repeat: Infinity, ease: "linear" }}
-          className="absolute top-[20%] -right-[20%] w-[60vw] h-[60vw] bg-emerald-600/10 rounded-full blur-[140px]"
-        />
-      </div>
+      {/* Dynamic Pawn Background */}
+      <FloatingPawns />
 
-      {/* --- NAVBAR --- */}
-      <motion.nav
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ type: "spring", stiffness: 80, damping: 20 }}
-        className="flex justify-between items-center px-6 md:px-12 py-5 border-b border-white/5 bg-[#050505]/60 backdrop-blur-xl sticky top-0 z-50"
-      >
-        <div className="flex items-center cursor-pointer group">
-          <motion.img
+      {/* Navbar */}
+      <nav className="flex justify-between items-center px-6 md:px-12 py-5 border-b border-white/5 bg-[#0f0f12]/80 backdrop-blur-xl sticky top-0 z-50">
+        <div className="flex items-center cursor-pointer">
+          <img
             src="/logo.jpg"
             alt="Chess Legends"
-            whileHover={{ scale: 1.05, filter: "drop-shadow(0px 0px 25px rgba(34,197,94,0.6))" }}
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            className="h-12 md:h-16 w-auto object-contain drop-shadow-[0_0_15px_rgba(34,197,94,0.3)]"
+            className="h-10 md:h-12 w-auto object-contain"
           />
         </div>
 
-        <div className="flex items-center space-x-3 md:space-x-6">
-          <motion.button
-            whileHover={{ scale: 1.05, color: "#4ade80" }}
-            whileTap={{ scale: 0.95 }}
+        <div className="flex items-center space-x-4 md:space-x-6">
+          <button
             onClick={onLogin}
-            className="text-gray-300 font-semibold text-sm transition-colors decoration-green-400 decoration-2 underline-offset-4 hover:underline"
+            className="text-gray-300 font-bold text-sm hover:text-white transition-colors"
           >
             Log In
-          </motion.button>
+          </button>
           
-          <motion.button
-            whileHover={{ scale: 1.05, boxShadow: "0px 0px 25px rgba(34, 197, 94, 0.4)" }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={onStart}
-            className="relative overflow-hidden px-5 py-2.5 bg-green-500 text-black font-extrabold rounded-lg text-sm sm:text-base group"
+            className="px-5 py-2.5 bg-[#4ade80] hover:bg-[#22c55e] text-[#0f0f12] font-extrabold rounded-xl shadow-lg transition-transform active:scale-95"
           >
-            <span className="relative z-10 flex items-center gap-2">
-              Play Now <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </span>
-            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-          </motion.button>
+            Sign Up
+          </button>
         </div>
-      </motion.nav>
+      </nav>
 
-      <div className="relative z-10">
+      <div className="relative z-10 w-full max-w-7xl mx-auto">
         
-        {/* --- HERO SECTION --- */}
-        <div className="min-h-[85vh] flex flex-col lg:flex-row items-center justify-center px-6 md:px-12 max-w-7xl mx-auto gap-16 py-20">
+        {/* --- HERO SECTION --- (Chess.com Split Layout) */}
+        <div className="min-h-[85vh] flex flex-col lg:flex-row items-center justify-between px-6 md:px-12 py-16 gap-12 lg:gap-20">
           
-          {/* Hero Text Content */}
+          {/* Left: Text & CTA CTA */}
           <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="show"
-            className="flex-1 max-w-2xl"
+            className="flex-1 max-w-xl z-10 flex flex-col items-center lg:items-start text-center lg:text-left"
           >
-            <motion.div variants={itemVariants} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-green-500/30 bg-green-500/10 text-green-400 text-xs sm:text-sm font-bold tracking-widest uppercase mb-8 backdrop-blur-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-              </span>
-              The Future of Chess
-            </motion.div>
-            
-            <motion.h1 variants={itemVariants} className="text-6xl md:text-7xl lg:text-[5rem] font-black leading-[1.1] tracking-tight text-white mb-6">
-              Master Chess Like A{" "}
-              <span className="relative inline-block mt-2">
-                <span className="absolute -inset-1 bg-gradient-to-r from-green-500 to-emerald-500 blur-2xl opacity-40 rounded-full animate-pulse"></span>
-                <span className="relative text-transparent bg-clip-text bg-gradient-to-r from-green-300 via-green-500 to-emerald-400 drop-shadow-sm">Grandmaster</span>
-              </span>
+            <motion.h1 variants={itemVariants} className="text-5xl md:text-7xl lg:text-[5.5rem] font-black leading-[1.05] tracking-tight text-white mb-6 drop-shadow-lg">
+              Master Chess <br className="hidden md:block" />
+              <span className="text-[#4ade80]">Online.</span>
             </motion.h1>
 
-            <motion.p variants={itemVariants} className="text-gray-400 text-lg md:text-xl leading-relaxed mb-10 max-w-lg font-medium">
-              A hyper-immersive, AI-powered arena. Face iconic personalities, conquer global leaderboards, and experience live commentary.
+            <motion.p variants={itemVariants} className="text-[#a1a1aa] text-lg md:text-2xl font-medium leading-snug mb-10 max-w-lg">
+              Play everywhere, analyze deeply, and dominate the board. Join the ultimate arena for competitive chess.
             </motion.p>
 
-            <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-5">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+            {/* Chess.com style blocky buttons */}
+            <motion.div variants={itemVariants} className="flex flex-col w-full sm:w-auto gap-5">
+              <button
                 onClick={onStart}
-                className="group relative flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-black font-black text-lg rounded-xl overflow-hidden shadow-[0_0_40px_rgba(34,197,94,0.3)] hover:shadow-[0_0_60px_rgba(34,197,94,0.5)] transition-shadow"
+                className="group flex items-center justify-center lg:justify-start gap-4 bg-[#81b64c] hover:bg-[#a3d160] text-white text-xl md:text-3xl font-black py-4 md:py-6 px-10 rounded-2xl shadow-[0_8px_0_#537133] hover:shadow-[0_4px_0_#537133] active:shadow-none active:translate-y-[8px] transition-all"
               >
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
-                Launch Arena <Globe className="w-5 h-5 group-hover:rotate-180 transition-transform duration-700" />
-              </motion.button>
+                <div className="bg-black/10 p-2 md:p-3 rounded-xl rotate-[-10deg] group-hover:rotate-0 transition-transform">
+                  <Globe className="w-8 h-8 md:w-10 md:h-10 text-white" />
+                </div>
+                <div className="flex flex-col items-start leading-none text-left">
+                  <span className="drop-shadow-sm">Play Online</span>
+                  <span className="text-sm font-bold text-white/70 mt-1 uppercase tracking-wide">Play vs a Person</span>
+                </div>
+              </button>
               
-              <motion.button
-                whileHover={{ scale: 1.05, backgroundColor: "rgba(255,255,255,0.05)" }}
-                whileTap={{ scale: 0.95 }}
-                className="px-8 py-4 rounded-xl border border-white/10 font-bold text-lg text-white hover:border-green-400/50 hover:text-green-400 transition-colors flex items-center justify-center"
+              <button
+                onClick={onStart}
+                className="group flex items-center justify-center lg:justify-start gap-4 bg-[#312e2b] hover:bg-[#43403d] text-gray-200 text-xl md:text-3xl font-black py-4 md:py-6 px-10 rounded-2xl shadow-[0_8px_0_#211f1c] hover:shadow-[0_4px_0_#211f1c] active:shadow-none active:translate-y-[8px] transition-all"
               >
-                Watch Trailer
-              </motion.button>
+                <div className="bg-white/5 p-2 md:p-3 rounded-xl group-hover:scale-110 transition-transform">
+                  <Bot className="w-8 h-8 md:w-10 md:h-10 text-gray-300" />
+                </div>
+                <div className="flex flex-col items-start leading-none text-left">
+                  <span className="drop-shadow-sm">Play Bot</span>
+                  <span className="text-sm font-bold text-white/40 mt-1 uppercase tracking-wide">Play vs Computer</span>
+                </div>
+              </button>
             </motion.div>
           </motion.div>
 
-          {/* Hero Visual - Floating 3D Board Impression */}
+          {/* Right: Board Visual */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.8, rotateY: 15 }}
-            animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-            transition={{ duration: 1.5, ease: "easeOut" }}
-            className="flex-1 relative w-full aspect-square max-w-[500px]"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8 }}
+            className="flex-1 w-full max-w-[600px] z-10 flex justify-center items-center relative"
           >
-            {/* The Floating Container */}
-            <motion.div
-              animate={{ y: [-15, 15, -15], rotateZ: [-1, 1, -1] }}
-              transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
-              className="relative w-full h-full rounded-2xl glass-panel flex items-center justify-center border border-white/10 bg-gradient-to-br from-white/5 to-transparent overflow-hidden shadow-2xl backdrop-blur-lg perspective-[1000px]"
-            >
-              {/* Inner Board Projection */}
-              <div
-                className="w-[85%] h-[85%] grid grid-cols-8 shadow-[0_0_50px_rgba(34,197,94,0.3)] transform-gpu rotate-x-12 rotate-z-3 rounded-lg overflow-hidden border border-green-500/40 opacity-90"
-                style={{ transform: "rotateX(25deg) rotateZ(-10deg)" }}
-              >
-                {[...Array(64)].map((_, i) => {
-                  const row = Math.floor(i / 8);
-                  const col = i % 8;
-                  const isDark = (row + col) % 2 === 1;
-                  return (
-                    <motion.div
-                      key={i}
-                      whileHover={{ scale: 1.2, zIndex: 10, backgroundColor: "#4ade80" }}
-                      className={`w-full h-full ${isDark ? "bg-[#111]" : "bg-[#222]"} transition-colors duration-300 relative`}
-                    >
-                      {/* Random abstract glowing pieces */}
-                      {(i === 27 || i === 36 || i === 14) && (
-                         <motion.div
-                           animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }}
-                           transition={{ duration: Math.random() * 2 + 2, repeat: Infinity }}
-                           className="absolute inset-2 bg-green-500 blur-sm rounded-full"
-                         />
-                      )}
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </motion.div>
+            <AnimatedBoard />
+            
+            {/* Simple decoration */}
+            <div className="absolute -bottom-8 -right-8 w-64 h-64 bg-[#4ade80]/10 rounded-full blur-[80px] -z-10"></div>
+            <div className="absolute -top-8 -left-8 w-64 h-64 bg-[#4ade80]/5 rounded-full blur-[80px] -z-10"></div>
           </motion.div>
         </div>
 
         {/* --- CORE FEATURES --- */}
-        <div className="py-32 px-6 md:px-12 relative border-t border-white/5 bg-[#050505]/80">
-          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
-
+        <div className="py-24 px-6 md:px-12 relative border-t border-white/5">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-100px" }}
             transition={{ duration: 0.8 }}
-            className="max-w-7xl mx-auto"
           >
-            <div className="text-center max-w-3xl mx-auto mb-20">
+            <div className="text-center max-w-3xl mx-auto mb-16">
               <h2 className="text-4xl md:text-5xl font-black text-white mb-6">
-                Redefining the <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400">Battleground</span>
+                Why <span className="text-[#4ade80]">Chess Legends?</span>
               </h2>
-              <p className="text-gray-400 text-lg md:text-xl font-medium">
+              <p className="text-[#a1a1aa] text-lg md:text-xl font-medium">
                 Engineered with cutting-edge tech. Play, analyze, and immerse yourself in a platform built for true enthusiasts.
               </p>
             </div>
 
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, margin: "-100px" }}
-              className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
-            >
-              <FeatureCard
-                icon={<Bot />}
-                title="Legendary AI Minds"
-                description="Face off against 6 unique AI personalities mapped to the playstyles of absolute legends, backed by Stockfish 18."
-              />
-              <FeatureCard
-                icon={<Globe />}
-                title="Real-Time Sync"
-                description="Lightning-fast WebSocket multiplayer. Create lobbies, chat instantly, and play bullet or classical matching your pace."
-              />
-              <FeatureCard
-                icon={<Mic />}
-                title="Gary: AI Commentator"
-                description="Our proprietary GPT-4 commentator roasts blunders and hypes brilliant moves in real-time as you play."
-              />
-              <FeatureCard
-                icon={<LineChart />}
-                title="Post-Match Forensics"
-                description="Deep move classification, centipawn loss graphs, and ECO detection. Analyze where you won, or exactly why you lost."
-              />
-              <FeatureCard
-                icon={<BarChart3 />}
-                title="Command Center"
-                description="Track ELO progression, win-rates across openings, and accuracy trends with gorgeous interactive dashboard charts."
-              />
-              <FeatureCard
-                icon={<Sparkles />}
-                title="Sensory Excellence"
-                description="Satisfying wood-click acoustics, buttery-smooth piece dragging, and a responsive 3D board design that feels tactile."
-              />
-            </motion.div>
-          </motion.div>
-        </div>
-
-        {/* --- ROADMAP --- */}
-        <div className="py-32 px-6 md:px-12 relative bg-gradient-to-b from-[#050505] to-[#0a120b] border-t border-white/5">
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 1 }}
-            className="max-w-7xl mx-auto"
-          >
-            <div className="text-center max-w-3xl mx-auto mb-20">
-              <h2 className="text-4xl md:text-5xl font-black text-white mb-6">
-                The <span className="text-green-400">Roadmap</span>
-              </h2>
-              <p className="text-gray-400 text-lg md:text-xl font-medium">
-                We're barely scratching the surface. Here's what's hitting the development pipeline next.
-              </p>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <FeatureCard icon={<Bot />} title="Legendary Bots" description="Face off against AI personalities mapped to the playstyles of absolute legends." />
+              <FeatureCard icon={<Globe />} title="Real-Time Play" description="Lightning-fast multiplayer. Create lobbies, chat instantly, and play bullet or classical." />
+              <FeatureCard icon={<Mic />} title="Live Commentator" description="Our AI commentator roasts blunders and hypes brilliant moves in real-time." />
+              <FeatureCard icon={<LineChart />} title="Deep Analysis" description="Review move classification, centipawn loss graphs, and find exactly where you won." />
+              <FeatureCard icon={<BarChart3 />} title="Command Center" description="Track ELO progression and accuracy trends with gorgeous interactive charts." />
+              <FeatureCard icon={<Sparkles />} title="Tactile Feel" description="Satisfying board acoustics and buttery-smooth piece dragging." />
             </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 relative">
-                {/* Visual connecting line behind cards */}
-                <div className="hidden lg:block absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-transparent via-green-500/20 to-transparent -translate-y-1/2 z-0"></div>
-
-              <RoadmapCard
-                delay={0}
-                icon={<BrainCircuit />}
-                title="Train Your Digital Twin"
-                description="Upload your game history and fine-tune a specialized AI model that plays exactly like you do."
-              />
-              <RoadmapCard
-                delay={0.2}
-                icon={<Share2 />}
-                title="AI Marketplace"
-                description="Publish your model. Climb the leaderboard as a master AI Trainer while millions challenge your creation."
-              />
-              <RoadmapCard
-                delay={0.4}
-                icon={<Target />}
-                title="Sparring Partners"
-                description="Train an AI to intentionally make mistakes or fall for specific traps, giving you the ultimate practice dummy."
-              />
-            </div>
-          </motion.div>
-        </div>
-
-        {/* --- EPIC CTA SECTION --- */}
-        <div className="py-32 px-6 relative flex flex-col items-center justify-center border-t border-white/5 overflow-hidden">
-          {/* Pulsing Background Focus */}
-          <motion.div
-            animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.3, 0.1] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-green-500 rounded-full blur-[200px] pointer-events-none"
-          />
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true, margin: "-100px" }}
-            transition={{ type: "spring", stiffness: 60, damping: 20 }}
-            className="relative z-10 text-center max-w-4xl glass-panel p-10 md:p-20 rounded-[3rem] border border-white/10 bg-white/[0.02] backdrop-blur-2xl shadow-2xl"
-          >
-            <h2 className="text-5xl md:text-7xl font-black mb-6 text-white tracking-tight leading-tight">
-              Ready to claim<br />your <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-300">Throne?</span>
-            </h2>
-            <p className="text-xl text-gray-400 mb-12 font-medium max-w-2xl mx-auto">
-              Join thousands of players already analyzing, competing, and evolving on the most advanced board ever built.
-            </p>
-            
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onStart}
-              className="group relative px-12 py-6 bg-green-500 text-black font-black text-2xl rounded-full overflow-hidden shadow-[0_0_50px_rgba(34,197,94,0.4)] hover:shadow-[0_0_80px_rgba(34,197,94,0.6)] transition-all"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <span className="relative z-10 flex items-center gap-3">
-                Play For Free
-                <motion.span
-                  animate={{ x: [0, 5, 0] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                >
-                  <ChevronRight size={28} />
-                </motion.span>
-              </span>
-            </motion.button>
           </motion.div>
         </div>
 
       </div>
+
+      {/* --- FOOTER --- */}
+      <Footer />
+    </div>
+  );
+}
+
+// Subcomponent: Animated 2D Board showing piece movement
+function AnimatedBoard() {
+  const [step, setStep] = React.useState(0);
+  const [isInteractive, setIsInteractive] = React.useState(false);
+  const [showTeacher, setShowTeacher] = React.useState(false);
+  const [customBoard, setCustomBoard] = React.useState(null);
+  
+  const boardRef = React.useRef(null);
+
+  const MOVES_SEQUENCE = React.useMemo(() => [
+    // 0: Start
+    { wp_e: 52, bp_e: 12, wp_d: 51, bp_d: 11, wn_g: 62, bn_b: 1, wp_a: 48, bp_h: 15 },
+    // 1: e4
+    { wp_e: 36, bp_e: 12, wp_d: 51, bp_d: 11, wn_g: 62, bn_b: 1, wp_a: 48, bp_h: 15 },
+    // 2: e5
+    { wp_e: 36, bp_e: 28, wp_d: 51, bp_d: 11, wn_g: 62, bn_b: 1, wp_a: 48, bp_h: 15 },
+    // 3: Nf3
+    { wp_e: 36, bp_e: 28, wp_d: 51, bp_d: 11, wn_g: 45, bn_b: 1, wp_a: 48, bp_h: 15 },
+    // 4: Nc6
+    { wp_e: 36, bp_e: 28, wp_d: 51, bp_d: 11, wn_g: 45, bn_b: 18, wp_a: 48, bp_h: 15 },
+    // 5: d4
+    { wp_e: 36, bp_e: 28, wp_d: 35, bp_d: 11, wn_g: 45, bn_b: 18, wp_a: 48, bp_h: 15 },
+    // 6: exd4 (bp_e captures wp_d)
+    { wp_e: 36, bp_e: 35, wp_d: -1, bp_d: 11, wn_g: 45, bn_b: 18, wp_a: 48, bp_h: 15 },
+    // 7: Nxd4 (wn_g captures bp_e)
+    { wp_e: 36, bp_e: -1, wp_d: -1, bp_d: 11, wn_g: 35, bn_b: 18, wp_a: 48, bp_h: 15 },
+    // 8: a4
+    { wp_e: 36, bp_e: -1, wp_d: -1, bp_d: 11, wn_g: 35, bn_b: 18, wp_a: 32, bp_h: 15 },
+    // 9: h5
+    { wp_e: 36, bp_e: -1, wp_d: -1, bp_d: 11, wn_g: 35, bn_b: 18, wp_a: 32, bp_h: 31 },
+  ], []);
+
+  React.useEffect(() => {
+    // If the user hasn't successfully made a piece move, but is playing with them, pause it.
+    // If customBoard is set, the user has taken over entirely! We stop the loop.
+    if (isInteractive || showTeacher || customBoard) return; 
+
+    const interval = setInterval(() => {
+      setStep((prev) => (prev + 1) % MOVES_SEQUENCE.length);
+    }, 2000); 
+    return () => clearInterval(interval);
+  }, [MOVES_SEQUENCE.length, isInteractive, showTeacher, customBoard]);
+
+  const activePositions = customBoard || MOVES_SEQUENCE[step];
+
+  const piecesConfig = [
+    { id: 'wp_e', char: '♟', color: '#ffffff', outline: '#000000', z: 10 },
+    { id: 'bp_e', char: '♟', color: '#111111', outline: '#ffffff', z: 10 },
+    { id: 'wp_d', char: '♟', color: '#ffffff', outline: '#000000', z: 9 },
+    { id: 'bp_d', char: '♟', color: '#111111', outline: '#ffffff', z: 9 },
+    { id: 'wn_g', char: '♞', color: '#ffffff', outline: '#000000', z: 15 },
+    { id: 'bn_b', char: '♞', color: '#111111', outline: '#ffffff', z: 15 },
+    { id: 'wp_a', char: '♟', color: '#ffffff', outline: '#000000', z: 8 },
+    { id: 'bp_h', char: '♟', color: '#111111', outline: '#ffffff', z: 8 },
+  ];
+
+  return (
+    <div 
+      ref={boardRef}
+      onMouseEnter={() => setIsInteractive(true)}
+      onMouseLeave={() => setIsInteractive(false)}
+      className="w-full aspect-square rounded-xl md:rounded-2xl overflow-hidden shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] border-[10px] md:border-[16px] border-[#312e2b] bg-[#312e2b] relative cursor-crosshair"
+    >
+      {/* Background squares grid */}
+      <div className="w-full h-full grid grid-cols-8 relative z-0">
+        {[...Array(64)].map((_, i) => {
+          const row = Math.floor(i / 8);
+          const col = i % 8;
+          const isDark = (row + col) % 2 === 1;
+          return (
+            <div key={i} className={`w-full h-full ${isDark ? 'bg-[#739552]' : 'bg-[#ebecd0]'}`} />
+          );
+        })}
+      </div>
+
+      {/* Animated & Draggable Pieces Overlay */}
+      <div className="absolute inset-0 z-10 pointer-events-none">
+        {piecesConfig.map((piece) => {
+          const pos = activePositions[piece.id];
+          const isCaptured = pos === -1;
+          const left = isCaptured ? '50%' : `${(pos % 8) * 12.5}%`;
+          const top = isCaptured ? '50%' : `${Math.floor(pos / 8) * 12.5}%`;
+
+          return (
+            <motion.div
+              key={piece.id}
+              drag={!isCaptured}
+              dragConstraints={boardRef}
+              dragElastic={0.1}
+              dragMomentum={false}
+              whileDrag={{ scale: 1.5, zIndex: 100, cursor: 'grabbing' }}
+              onDragStart={() => {
+                setIsInteractive(true);
+                playSound('pickup');
+                setShowTeacher(false);
+              }}
+              onDragEnd={(_, info) => {
+                playSound('drop');
+                
+                if (!boardRef.current) return;
+                const boardRect = boardRef.current.getBoundingClientRect();
+                const squareSize = boardRect.width / 8;
+                
+                const dxSquares = Math.round(info.offset.x / squareSize);
+                const dySquares = Math.round(info.offset.y / squareSize);
+                
+                // If they didn't drag it out of its square, ignore
+                if (dxSquares === 0 && dySquares === 0) {
+                  return;
+                }
+                
+                const startRow = Math.floor(pos / 8);
+                const startCol = pos % 8;
+                const destRow = startRow + dySquares;
+                const destCol = startCol + dxSquares;
+                const destPos = destRow * 8 + destCol;
+                
+                // Out of bounds check
+                if (destRow < 0 || destRow > 7 || destCol < 0 || destCol > 7) {
+                  setShowTeacher(true);
+                  return;
+                }
+                
+                let valid = false;
+                // Basic Rules Validation
+                if (piece.id.includes('n_')) {
+                  // Knight logic
+                  if ((Math.abs(dxSquares) === 1 && Math.abs(dySquares) === 2) ||
+                      (Math.abs(dxSquares) === 2 && Math.abs(dySquares) === 1)) {
+                    valid = true;
+                  }
+                } else if (piece.id.includes('p_')) {
+                  // Pawn logic
+                  const isWhite = piece.id.startsWith('w');
+                  const forwardDir = isWhite ? -1 : 1;
+                  const startRank = isWhite ? 6 : 1;
+                  
+                  if (dxSquares === 0) {
+                    if (dySquares === forwardDir) valid = true; // 1 step
+                    if (dySquares === forwardDir * 2 && startRow === startRank) valid = true; // 2 steps from start
+                  } else if (Math.abs(dxSquares) === 1 && dySquares === forwardDir) {
+                    // Capture diagonally
+                    valid = true; 
+                  }
+                }
+                
+                if (!valid) {
+                  setShowTeacher(true);
+                  return;
+                }
+                
+                // Legal move attempt! Check collisions.
+                const newBoard = { ...activePositions };
+                let collisionBlocked = false;
+                
+                Object.keys(newBoard).forEach(k => {
+                  if (newBoard[k] === destPos && k !== piece.id) {
+                    // Check if landing on your own piece
+                    if (k.charAt(0) === piece.id.charAt(0)) {
+                      collisionBlocked = true;
+                    } else {
+                      newBoard[k] = -1; // Captured!
+                    }
+                  }
+                });
+                
+                if (collisionBlocked) {
+                  setShowTeacher(true);
+                  return;
+                }
+                
+                // Excellent, apply user's move
+                newBoard[piece.id] = destPos;
+                setCustomBoard(newBoard);
+                // Teacher explicitly dismissed when they make a good move
+                setShowTeacher(false); 
+              }}
+              animate={{
+                left,
+                top,
+                x: 0, // This resets framer-motion drag offset to snap nicely back or to the new grid tile!
+                y: 0,
+                opacity: isCaptured ? 0 : 1,
+                scale: isCaptured ? 0 : 1,
+              }}
+              transition={{
+                type: 'spring',
+                stiffness: 120,
+                damping: 20,
+                opacity: { duration: 0.2 },
+                scale: { duration: 0.2 }
+              }}
+              className="absolute w-[12.5%] h-[12.5%] flex items-center justify-center pointer-events-auto cursor-grab touch-none"
+              style={{ zIndex: piece.z }}
+            >
+              <span 
+                className="text-4xl sm:text-5xl md:text-6xl" 
+                style={{ 
+                  color: piece.color, 
+                  lineHeight: 1,
+                  filter: `drop-shadow(0px 8px 12px rgba(0,0,0,0.6)) drop-shadow(0px 1px 2px ${piece.outline})`
+                }}
+              >
+                {piece.char}
+              </span>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Decorative Shadows */}
+      <div className="absolute inset-0 bg-gradient-to-tr from-black/20 to-transparent pointer-events-none mix-blend-overlay z-20"></div>
+      
+      {/* Interactive overlay hint */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isInteractive && !showTeacher ? 1 : 0 }}
+        className="absolute top-2 left-1/2 -translate-x-1/2 bg-black/60 text-white text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-full z-30 pointer-events-none backdrop-blur-sm shadow-xl border border-white/10 tracking-widest uppercase"
+      >
+        Grab the pieces!
+      </motion.div>
+
+      {/* Animated Teacher Overlay */}
+      {showTeacher && (
+        <motion.div
+          initial={{ y: 50, opacity: 0, scale: 0.8 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: 50, opacity: 0, scale: 0.8 }}
+          className="absolute bottom-4 right-4 md:bottom-6 md:right-6 z-50 flex items-end gap-3 pointer-events-auto"
+        >
+          {/* Custom Speech Bubble */}
+          <div className="relative bg-[#ebecd0] text-[#18181b] p-3 md:p-4 rounded-2xl rounded-br-none shadow-2xl max-w-[180px] md:max-w-[220px]">
+            <p className="font-extrabold text-sm md:text-base border-b border-black/10 pb-2 mb-2">
+              Oh no, wrong move! 😅
+            </p>
+            <p className="text-xs md:text-sm text-[#312e2b] font-medium leading-tight mb-3">
+              Want to learn how to play like a legend?
+            </p>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setShowTeacher(false)} 
+                className="flex-1 bg-[#4ade80] hover:bg-[#22c55e] text-black text-xs font-black py-2 px-2 rounded-lg shadow-md transition-colors"
+              >
+                Learn with us!
+              </button>
+            </div>
+            {/* Triangle tail */}
+            <div className="absolute -bottom-2 right-4 w-4 h-4 bg-[#ebecd0] rotate-45 shadow-[2px_2px_4px_rgba(0,0,0,0.1)]"></div>
+          </div>
+          
+          {/* Animated Teacher Avatar */}
+          <motion.div 
+            animate={{ y: [0, -10, 0] }}
+            transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+            className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-[#312e2b] border-[3px] border-[#4ade80] flex items-center justify-center shadow-lg relative"
+          >
+            <Bot className="w-8 h-8 md:w-10 md:h-10 text-[#4ade80]" />
+            <div className="absolute -top-3 -right-2 text-xl md:text-2xl drop-shadow-sm">🎓</div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }
 
 // Subcomponent: Animated Feature Card
 function FeatureCard({ icon, title, description }) {
-  // We use Framer Motion variants that integrate with the parent staggerChildren
-  const cardVariants = {
-    hidden: { opacity: 0, y: 40, scale: 0.95 },
-    show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 100, damping: 20 } },
-  };
-
   return (
-    <motion.div
-      variants={cardVariants}
-      whileHover={{ y: -8, scale: 1.02, backgroundColor: "rgba(255,255,255,0.03)" }}
-      className="p-8 rounded-3xl bg-white/[0.01] border border-white/5 backdrop-blur-md transition-colors relative group overflow-hidden"
-    >
-      <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-      
-      <div className="relative z-10">
-        <div className="w-14 h-14 rounded-2xl bg-green-500/10 flex items-center justify-center text-green-400 mb-6 group-hover:bg-green-500 group-hover:text-black group-hover:shadow-[0_0_20px_rgba(34,197,94,0.5)] transition-all duration-300">
-          {React.cloneElement(icon, { size: 28 })}
-        </div>
-        <h3 className="text-2xl font-bold mb-3 text-white tracking-tight">
-          {title}
-        </h3>
-        <p className="text-gray-400 text-base leading-relaxed font-medium">
-          {description}
-        </p>
+    <div className="p-8 rounded-2xl bg-[#18181b] hover:bg-[#27272a] border border-white/5 transition-all duration-300 group">
+      <div className="w-14 h-14 rounded-xl bg-[#27272a] group-hover:bg-[#4ade80]/20 flex items-center justify-center text-[#4ade80] mb-6 transition-colors">
+        {React.cloneElement(icon, { size: 28 })}
       </div>
-    </motion.div>
+      <h3 className="text-xl font-bold mb-3 text-white tracking-tight">
+        {title}
+      </h3>
+      <p className="text-[#a1a1aa] leading-relaxed font-medium">
+        {description}
+      </p>
+    </div>
   );
 }
 
-// Subcomponent: Animated Roadmap Card
-function RoadmapCard({ delay, icon, title, description }) {
+// Subcomponent: Animated Pawn Background
+function FloatingPawns() {
+  const containerRef = React.useRef(null);
+  
+  // Generate random starting positions and durations for 15 pawns
+  const pawns = React.useMemo(() => {
+    return [...Array(15)].map((_, i) => ({
+      id: i,
+      size: Math.random() * 3 + 1.5, // rem size
+      startX: Math.random() * 100, // vw
+      delay: Math.random() * -30, // seconds
+      duration: Math.random() * 20 + 25, // seconds
+      opacity: Math.random() * 0.15 + 0.05,
+      rotation: Math.random() * 360,
+    }));
+  }, []);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 50 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-100px" }}
-      transition={{ duration: 0.7, delay: delay, type: "spring", stiffness: 80 }}
-      whileHover={{ scale: 1.05, rotateZ: 1 }}
-      className="p-8 rounded-3xl bg-gradient-to-br from-white/[0.04] to-transparent border border-white/10 backdrop-blur-sm relative z-10 flex flex-col items-center text-center group"
-    >
-      <div className="w-16 h-16 rounded-full bg-[#111] border border-white/10 flex items-center justify-center text-green-500 mb-6 transform -translate-y-12 shadow-xl group-hover:border-green-500/50 group-hover:shadow-[0_0_30px_rgba(34,197,94,0.2)] transition-all duration-300">
-        {React.cloneElement(icon, { size: 30 })}
+    <div ref={containerRef} className="absolute inset-0 z-0 overflow-hidden pointer-events-none bg-[#09090b]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(74,222,128,0.03)_0%,transparent_70%)] pointer-events-none"></div>
+      {pawns.map((pawn) => (
+        <motion.div
+          key={pawn.id}
+          drag
+          dragConstraints={containerRef}
+          whileHover={{ scale: 1.3, opacity: 0.8, filter: "drop-shadow(0px 0px 8px rgba(74,222,128,0.5))" }}
+          whileDrag={{ scale: 1.5, opacity: 1, cursor: "grabbing" }}
+          onDragStart={() => playSound('pickup')}
+          onDragEnd={() => playSound('drop')}
+          initial={{ 
+            y: "110vh", 
+            x: `${pawn.startX}vw`, 
+            opacity: pawn.opacity, 
+            rotate: pawn.rotation 
+          }}
+          animate={{ 
+            y: "-20vh", 
+            rotate: pawn.rotation + (Math.random() > 0.5 ? 180 : -180),
+            x: `${pawn.startX + (Math.random() * 20 - 10)}vw`,
+          }}
+          transition={{
+            duration: pawn.duration,
+            delay: pawn.delay,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+          className="absolute text-[#4ade80] drop-shadow-sm pointer-events-auto cursor-grab touch-none"
+          style={{ fontSize: `${pawn.size}rem`, color: 'rgba(74,222,128,0.15)' }}
+        >
+          ♟
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+// Subcomponent: Footer
+function Footer() {
+  return (
+    <footer className="relative z-10 border-t border-white/5 bg-[#0a0a0c] pt-16 pb-8 px-6 md:px-12">
+      <div className="max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+          {/* Brand */}
+          <div className="col-span-1 md:col-span-1">
+            <img src="/logo.jpg" alt="Chess Legends" className="h-10 w-auto object-contain mb-6" />
+            <p className="text-[#a1a1aa] text-sm leading-relaxed mb-6 font-medium">
+              The premier platform for playing, analyzing, and mastering chess online. Join a global community of legends.
+            </p>
+            <div className="flex space-x-5 text-[#a1a1aa]">
+              <a href="#" className="hover:text-[#4ade80] hover:-translate-y-1 transition-all"><Twitter size={22} /></a>
+              <a href="#" className="hover:text-[#4ade80] hover:-translate-y-1 transition-all"><Github size={22} /></a>
+              <a href="#" className="hover:text-[#4ade80] hover:-translate-y-1 transition-all"><Youtube size={22} /></a>
+            </div>
+          </div>
+          
+          {/* Links 1 */}
+          <div>
+            <h4 className="text-white font-black mb-5 uppercase tracking-wider text-sm">Play</h4>
+            <ul className="space-y-3 text-[#a1a1aa] text-sm font-medium">
+              <li><a href="#" className="hover:text-white transition-colors">Play vs Person</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Play vs Computer</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Tournaments</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Leaderboards</a></li>
+            </ul>
+          </div>
+
+          {/* Links 2 */}
+          <div>
+            <h4 className="text-white font-black mb-5 uppercase tracking-wider text-sm">Learn</h4>
+            <ul className="space-y-3 text-[#a1a1aa] text-sm font-medium">
+              <li><a href="#" className="hover:text-white transition-colors">Lessons</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Puzzles</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Articles</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Masterclasses</a></li>
+            </ul>
+          </div>
+
+          {/* Links 3 */}
+          <div>
+            <h4 className="text-white font-black mb-5 uppercase tracking-wider text-sm">About</h4>
+            <ul className="space-y-3 text-[#a1a1aa] text-sm font-medium">
+              <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Developers</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row items-center justify-between text-xs font-semibold text-[#71717a]">
+          <p>&copy; {new Date().getFullYear()} Chess Legends. All rights reserved.</p>
+          <div className="flex space-x-6 mt-4 md:mt-0">
+            <a href="#" className="hover:text-white transition-colors">Fair Play</a>
+            <a href="#" className="hover:text-white transition-colors">Community Guidelines</a>
+          </div>
+        </div>
       </div>
-      <div className="-mt-6">
-        <h3 className="text-xl font-bold text-white mb-3">{title}</h3>
-        <p className="text-gray-400 leading-relaxed font-medium text-sm">
-          {description}
-        </p>
-      </div>
-    </motion.div>
+    </footer>
   );
 }
